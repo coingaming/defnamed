@@ -88,8 +88,8 @@ defmodule Defnamed.Check do
       actual_keys
       |> MapSet.member?(key)
       |> case do
-        true -> ok()
-        false -> missing_required_args(message)
+        true -> {:cont, ok()}
+        false -> {:halt, missing_required_args(message)}
       end
     end)
   end
