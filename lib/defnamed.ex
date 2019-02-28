@@ -225,9 +225,9 @@ defmodule Defnamed do
            original_args_kv: original_args_kv,
            do_name: do_name
          } = params,
-         define_additional_macro_layer?
+         is_public?
        )
-       when is_boolean(define_additional_macro_layer?) do
+       when is_boolean(is_public?) do
     args_struct_module_name
     |> named_module_registered?
     |> case do
@@ -237,44 +237,45 @@ defmodule Defnamed do
       false ->
         :ok = register_named_module(args_struct_module_name)
 
-        additional_macro_layer =
-          define_additional_macro_layer?
-          |> case do
-            true ->
-              [
-                quote do
-                  defmacro unquote(original_name)(kv) do
-                    :ok =
-                      unquote(__MODULE__).validate_original_args_kv(
-                        %unquote(__MODULE__){
-                          unquote(params |> Macro.escape())
-                          | original_args_kv: kv
-                        },
-                        true
-                      )
+        additional_macro_layer = [
+          quote do
+            defmacro unquote(original_name)(kv) do
+              :ok =
+                unquote(__MODULE__).validate_original_args_kv(
+                  %unquote(__MODULE__){
+                    unquote(params |> Macro.escape())
+                    | original_args_kv: kv
+                  },
+                  true
+                )
 
-                    do_name = unquote(do_name)
-                    caller_module_name = unquote(caller_module_name)
+              do_name = unquote(do_name)
+              caller_module_name = unquote(caller_module_name)
 
-                    struct_ast = {
-                      :%,
-                      [],
-                      [
-                        {:__aliases__, [alias: false], unquote(args_struct_list_alias)},
-                        {:%{}, [], kv}
-                      ]
-                    }
+              struct_ast = {
+                :%,
+                [],
+                [
+                  {:__aliases__, [alias: false], unquote(args_struct_list_alias)},
+                  {:%{}, [], kv}
+                ]
+              }
 
-                    quote do
-                      unquote(caller_module_name).unquote(do_name)(unquote(struct_ast))
-                    end
+              unquote(is_public?)
+              |> case do
+                true ->
+                  quote do
+                    unquote(caller_module_name).unquote(do_name)(unquote(struct_ast))
                   end
-                end
-              ]
 
-            false ->
-              []
+                false ->
+                  quote do
+                    unquote(do_name)(unquote(struct_ast))
+                  end
+              end
+            end
           end
+        ]
 
         [
           quote do
