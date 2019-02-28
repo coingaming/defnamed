@@ -4,11 +4,9 @@ defmodule Defnamed do
   """
 
   @compilertime_caller :caller
-  @compilertime_fallback :fallback
 
   @compilertime_params [
-    @compilertime_caller,
-    @compilertime_fallback
+    @compilertime_caller
   ]
 
   @keys [
@@ -19,8 +17,7 @@ defmodule Defnamed do
     :original_name,
     :original_args_kv,
     :do_name,
-    @compilertime_caller,
-    @compilertime_fallback
+    @compilertime_caller
   ]
   @enforce_keys @keys
   defstruct @keys
@@ -284,8 +281,7 @@ defmodule Defnamed do
       original_name: original_name,
       original_args_kv: original_args_kv,
       do_name: String.to_atom("do_#{original_name}"),
-      caller: compiletime_params[@compilertime_caller],
-      fallback: compiletime_params[@compilertime_fallback]
+      caller: compiletime_params[@compilertime_caller]
     }
   end
 
@@ -329,8 +325,7 @@ defmodule Defnamed do
            args_struct_list_alias: args_struct_list_alias,
            args_struct_module_name: args_struct_module_name,
            original_args_kv: original_args_kv,
-           do_name: do_name,
-           fallback: compiletime_fallback
+           do_name: do_name
          } = params,
          is_public?
        )
@@ -344,119 +339,51 @@ defmodule Defnamed do
       false ->
         :ok = register_named_module(args_struct_module_name)
 
-        additional_macro_layer =
-          compiletime_fallback
-          |> case do
-            nil ->
-              [
-                quote do
-                  defmacro unquote(original_name)() do
-                    original_name = unquote(original_name)
+        additional_macro_layer = [
+          quote do
+            defmacro unquote(original_name)() do
+              original_name = unquote(original_name)
 
-                    quote do
-                      unquote(original_name)([])
-                    end
+              quote do
+                unquote(original_name)([])
+              end
+            end
+
+            defmacro unquote(original_name)(kv) do
+              :ok =
+                %unquote(__MODULE__){
+                  unquote(params |> Macro.escape())
+                  | original_args_kv: kv
+                }
+                |> unquote(__MODULE__).validate_original_args_kv!(true)
+
+              do_name = unquote(do_name)
+              caller_module_name = unquote(caller_module_name)
+
+              struct_ast = {
+                :%,
+                [],
+                [
+                  {:__aliases__, [alias: false], unquote(args_struct_list_alias)},
+                  {:%{}, [], kv}
+                ]
+              }
+
+              unquote(is_public?)
+              |> case do
+                true ->
+                  quote do
+                    unquote(caller_module_name).unquote(do_name)(unquote(struct_ast))
                   end
 
-                  defmacro unquote(original_name)(kv) do
-                    unquote(__MODULE__).validate_original_args_kv(
-                      %unquote(__MODULE__){
-                        unquote(params |> Macro.escape())
-                        | original_args_kv: kv
-                      },
-                      true
-                    )
-                    |> case do
-                      :ok ->
-                        do_name = unquote(do_name)
-                        caller_module_name = unquote(caller_module_name)
-
-                        struct_ast = {
-                          :%,
-                          [],
-                          [
-                            {:__aliases__, [alias: false], unquote(args_struct_list_alias)},
-                            {:%{}, [], kv}
-                          ]
-                        }
-
-                        unquote(is_public?)
-                        |> case do
-                          true ->
-                            quote do
-                              unquote(caller_module_name).unquote(do_name)(unquote(struct_ast))
-                            end
-
-                          false ->
-                            quote do
-                              unquote(do_name)(unquote(struct_ast))
-                            end
-                        end
-
-                      {:error, error} ->
-                        raise ArgumentError, message: error
-                    end
+                false ->
+                  quote do
+                    unquote(do_name)(unquote(struct_ast))
                   end
-                end
-              ]
-
-            _ ->
-              [
-                quote do
-                  defmacro unquote(original_name)() do
-                    original_name = unquote(original_name)
-
-                    quote do
-                      unquote(original_name)([])
-                    end
-                  end
-
-                  defmacro unquote(original_name)(kv) do
-                    compiletime_fallback = unquote(compiletime_fallback)
-
-                    unquote(__MODULE__).validate_original_args_kv(
-                      %unquote(__MODULE__){
-                        unquote(params |> Macro.escape())
-                        | original_args_kv: kv
-                      },
-                      true
-                    )
-                    |> case do
-                      :ok ->
-                        do_name = unquote(do_name)
-                        caller_module_name = unquote(caller_module_name)
-
-                        struct_ast = {
-                          :%,
-                          [],
-                          [
-                            {:__aliases__, [alias: false], unquote(args_struct_list_alias)},
-                            {:%{}, [], kv}
-                          ]
-                        }
-
-                        unquote(is_public?)
-                        |> case do
-                          true ->
-                            quote do
-                              unquote(caller_module_name).unquote(do_name)(unquote(struct_ast))
-                            end
-
-                          false ->
-                            quote do
-                              unquote(do_name)(unquote(struct_ast))
-                            end
-                        end
-
-                      {:error, _} ->
-                        quote do
-                          unquote(compiletime_fallback)(unquote(kv))
-                        end
-                    end
-                  end
-                end
-              ]
+              end
+            end
           end
+        ]
 
         [
           quote do
