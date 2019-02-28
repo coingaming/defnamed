@@ -1,6 +1,6 @@
 defmodule Defnamed do
   @moduledoc """
-  Documentation for Defnamed
+  Compile-time named arguments for Elixir functions and macro
   """
 
   @keys [
@@ -15,6 +15,16 @@ defmodule Defnamed do
   @enforce_keys @keys
   defstruct @keys
 
+  @doc """
+  Helper that imports `defn/2`, `defpn/2`, `defmacron/2`, `defmacropn/2`
+
+  ## Examples
+
+  ```
+  iex> use Defnamed
+  Defnamed
+  ```
+  """
   defmacro __using__(_) do
     quote do
       import Defnamed, only: [defn: 2]
@@ -65,7 +75,6 @@ defmodule Defnamed do
   ** (ArgumentError) Elixir.DefnamedTest.Ledger.transact was called with unacceptable aruments [:foo], it only can accept [:amount, :balance]
   ```
   """
-
   defmacro defn(
              {:when, original_when_meta,
               [{original_name, original_meta, [original_args_kv]} | original_guards]},
@@ -80,7 +89,7 @@ defmodule Defnamed do
 
     code =
       params
-      |> maybe_define_named_module
+      |> maybe_define_named_interface(true)
       |> Enum.concat([
         quote do
           def unquote(
@@ -107,7 +116,7 @@ defmodule Defnamed do
 
     code =
       params
-      |> maybe_define_named_module
+      |> maybe_define_named_interface(true)
       |> Enum.concat([
         quote do
           def unquote({do_name, original_meta, [args_struct_ast]}) do
@@ -207,7 +216,7 @@ defmodule Defnamed do
     }
   end
 
-  defp maybe_define_named_module(
+  defp maybe_define_named_interface(
          %__MODULE__{
            original_name: original_name,
            caller_module_name: caller_module_name,
@@ -215,8 +224,10 @@ defmodule Defnamed do
            args_struct_module_name: args_struct_module_name,
            original_args_kv: original_args_kv,
            do_name: do_name
-         } = params
-       ) do
+         } = params,
+         define_additional_macro_layer?
+       )
+       when is_boolean(define_additional_macro_layer?) do
     args_struct_module_name
     |> named_module_registered?
     |> case do
@@ -226,40 +237,53 @@ defmodule Defnamed do
       false ->
         :ok = register_named_module(args_struct_module_name)
 
+        additional_macro_layer =
+          define_additional_macro_layer?
+          |> case do
+            true ->
+              [
+                quote do
+                  defmacro unquote(original_name)(kv) do
+                    :ok =
+                      unquote(__MODULE__).validate_original_args_kv(
+                        %unquote(__MODULE__){
+                          unquote(params |> Macro.escape())
+                          | original_args_kv: kv
+                        },
+                        true
+                      )
+
+                    do_name = unquote(do_name)
+                    caller_module_name = unquote(caller_module_name)
+
+                    struct_ast = {
+                      :%,
+                      [],
+                      [
+                        {:__aliases__, [alias: false], unquote(args_struct_list_alias)},
+                        {:%{}, [], kv}
+                      ]
+                    }
+
+                    quote do
+                      unquote(caller_module_name).unquote(do_name)(unquote(struct_ast))
+                    end
+                  end
+                end
+              ]
+
+            false ->
+              []
+          end
+
         [
           quote do
             defmodule unquote(args_struct_module_name) do
               defstruct unquote(original_args_kv |> Keyword.keys())
             end
-
-            defmacro unquote(original_name)(kv) do
-              :ok =
-                unquote(__MODULE__).validate_original_args_kv(
-                  %unquote(__MODULE__){
-                    unquote(params |> Macro.escape())
-                    | original_args_kv: kv
-                  },
-                  true
-                )
-
-              do_name = unquote(do_name)
-              caller_module_name = unquote(caller_module_name)
-
-              struct_ast = {
-                :%,
-                [],
-                [
-                  {:__aliases__, [alias: false], unquote(args_struct_list_alias)},
-                  {:%{}, [], kv}
-                ]
-              }
-
-              quote do
-                unquote(caller_module_name).unquote(do_name)(unquote(struct_ast))
-              end
-            end
           end
         ]
+        |> Enum.concat(additional_macro_layer)
     end
   end
 
