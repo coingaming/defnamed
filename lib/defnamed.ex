@@ -3,11 +3,16 @@ defmodule Defnamed do
   Compile-time named arguments for Elixir functions and macro
   """
 
+  require Defnamed.Check, as: Check
+
   @compilertime_caller :caller
 
   @compilertime_params [
     @compilertime_caller
   ]
+
+  @compilertime_params_mapset @compilertime_params
+                              |> MapSet.new()
 
   @keys [
     :args_struct_list_alias,
@@ -246,7 +251,7 @@ defmodule Defnamed do
   end
 
   defp generate_params(original_name, original_args_kv, caller_module_name, compiletime_params) do
-    :ok = validate_compiletime_params(compiletime_params)
+    :ok = validate_compiletime_params!(compiletime_params)
 
     args_struct_subname =
       original_name
@@ -285,37 +290,14 @@ defmodule Defnamed do
     }
   end
 
-  defp validate_compiletime_params(compiletime_params) do
-    error_message =
+  defp validate_compiletime_params!(compiletime_params) do
+    message =
       "Defnamed compiletime parameters argument should be keyword list wich can contain only #{
         inspect(@compilertime_params)
-      } keys, but got #{inspect(compiletime_params)}"
+      } keys without duplication, but got #{inspect(compiletime_params)}."
 
     compiletime_params
-    |> Keyword.keyword?()
-    |> case do
-      true ->
-        compiletime_params
-        |> length
-        |> case do
-          n when n <= length(@compilertime_params) ->
-            compiletime_params
-            |> Enum.each(fn {k, _} ->
-              @compilertime_params
-              |> Enum.member?(k)
-              |> case do
-                true -> :ok
-                false -> raise(ArgumentError, message: error_message)
-              end
-            end)
-
-          _ ->
-            raise(ArgumentError, message: error_message)
-        end
-
-      false ->
-        raise(ArgumentError, message: error_message)
-    end
+    |> Check.validate_kv!(@compilertime_params_mapset, [], message)
   end
 
   defp maybe_define_named_interface(
