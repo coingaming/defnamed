@@ -3,6 +3,14 @@ defmodule Defnamed do
   Compile-time named arguments for Elixir functions and macro
   """
 
+  @compilertime_caller :caller
+  @compilertime_fallback :fallback
+
+  @compilertime_params [
+    @compilertime_caller,
+    @compilertime_fallback
+  ]
+
   @keys [
     :args_struct_list_alias,
     :args_struct_module_name,
@@ -10,13 +18,15 @@ defmodule Defnamed do
     :caller_module_name,
     :original_name,
     :original_args_kv,
-    :do_name
+    :do_name,
+    @compilertime_caller,
+    @compilertime_fallback
   ]
   @enforce_keys @keys
   defstruct @keys
 
   @doc """
-  Helper that imports `defn/2`, `defpn/2`, `defmacron/2`, `defmacropn/2`
+  Helper that imports `defn/2`, `defn/3`
 
   ## Examples
 
@@ -27,7 +37,7 @@ defmodule Defnamed do
   """
   defmacro __using__(_) do
     quote do
-      import Defnamed, only: [defn: 2]
+      import Defnamed, only: [defn: 2, defn: 3]
     end
   end
 
@@ -78,14 +88,34 @@ defmodule Defnamed do
   defmacro defn(
              {:when, original_when_meta,
               [{original_name, original_meta, [original_args_kv]} | original_guards]},
+             compiletime_params,
              do: original_body
            ) do
     %Macro.Env{module: caller_module_name} = __CALLER__
 
-    %__MODULE__{do_name: do_name, args_struct_ast: args_struct_ast} =
-      params = generate_params(original_name, original_args_kv, caller_module_name)
+    %__MODULE__{
+      do_name: do_name,
+      args_struct_ast: args_struct_ast,
+      caller: compiletime_caller
+    } =
+      params =
+      generate_params(original_name, original_args_kv, caller_module_name, compiletime_params)
 
     :ok = validate_original_args_kv(params, false)
+
+    caller_code =
+      compiletime_caller
+      |> case do
+        nil ->
+          []
+
+        _ ->
+          [
+            quote do
+              unquote(compiletime_caller) = unquote(__CALLER__ |> Macro.escape())
+            end
+          ]
+      end
 
     code =
       params
@@ -96,7 +126,7 @@ defmodule Defnamed do
                 {:when, original_when_meta,
                  [{do_name, original_meta, [args_struct_ast]} | original_guards]}
               ) do
-            unquote(original_body)
+            (unquote_splicing([caller_code, original_body]))
           end
         end
       ])
@@ -106,13 +136,36 @@ defmodule Defnamed do
     end
   end
 
-  defmacro defn({original_name, original_meta, [original_args_kv]}, do: original_body) do
+  defmacro defn(
+             {original_name, original_meta, [original_args_kv]},
+             compiletime_params,
+             do: original_body
+           ) do
     %Macro.Env{module: caller_module_name} = __CALLER__
 
-    %__MODULE__{do_name: do_name, args_struct_ast: args_struct_ast} =
-      params = generate_params(original_name, original_args_kv, caller_module_name)
+    %__MODULE__{
+      do_name: do_name,
+      args_struct_ast: args_struct_ast,
+      caller: compiletime_caller
+    } =
+      params =
+      generate_params(original_name, original_args_kv, caller_module_name, compiletime_params)
 
     :ok = validate_original_args_kv(params, false)
+
+    caller_code =
+      compiletime_caller
+      |> case do
+        nil ->
+          []
+
+        _ ->
+          [
+            quote do
+              unquote(compiletime_caller) = unquote(__CALLER__ |> Macro.escape())
+            end
+          ]
+      end
 
     code =
       params
@@ -120,13 +173,19 @@ defmodule Defnamed do
       |> Enum.concat([
         quote do
           def unquote({do_name, original_meta, [args_struct_ast]}) do
-            unquote(original_body)
+            (unquote_splicing([caller_code, original_body]))
           end
         end
       ])
 
     quote do
       (unquote_splicing(code))
+    end
+  end
+
+  defmacro defn(header, body) do
+    quote do
+      defn(unquote(header), [], unquote(body))
     end
   end
 
@@ -179,7 +238,9 @@ defmodule Defnamed do
     end
   end
 
-  defp generate_params(original_name, original_args_kv, caller_module_name) do
+  defp generate_params(original_name, original_args_kv, caller_module_name, compiletime_params) do
+    :ok = validate_compiletime_params(compiletime_params)
+
     args_struct_subname =
       original_name
       |> Atom.to_string()
@@ -212,8 +273,43 @@ defmodule Defnamed do
       caller_module_name: caller_module_name,
       original_name: original_name,
       original_args_kv: original_args_kv,
-      do_name: String.to_atom("do_#{original_name}")
+      do_name: String.to_atom("do_#{original_name}"),
+      caller: compiletime_params[@compilertime_caller],
+      fallback: compiletime_params[@compilertime_fallback]
     }
+  end
+
+  defp validate_compiletime_params(compiletime_params) do
+    error_message =
+      "Defnamed compiletime parameters argument should be keyword list wich can contain only #{
+        inspect(@compilertime_params)
+      } keys, but got #{inspect(compiletime_params)}"
+
+    compiletime_params
+    |> Keyword.keyword?()
+    |> case do
+      true ->
+        compiletime_params
+        |> length
+        |> case do
+          n when n <= length(@compilertime_params) ->
+            compiletime_params
+            |> Enum.each(fn {k, _} ->
+              @compilertime_params
+              |> Enum.member?(k)
+              |> case do
+                true -> :ok
+                false -> raise(ArgumentError, message: error_message)
+              end
+            end)
+
+          _ ->
+            raise(ArgumentError, message: error_message)
+        end
+
+      false ->
+        raise(ArgumentError, message: error_message)
+    end
   end
 
   defp maybe_define_named_interface(
@@ -239,6 +335,14 @@ defmodule Defnamed do
 
         additional_macro_layer = [
           quote do
+            defmacro unquote(original_name)() do
+              original_name = unquote(original_name)
+
+              quote do
+                unquote(original_name)([])
+              end
+            end
+
             defmacro unquote(original_name)(kv) do
               :ok =
                 unquote(__MODULE__).validate_original_args_kv(
