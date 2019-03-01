@@ -36,7 +36,15 @@ defmodule Defnamed do
         }
 
   @doc """
-  Helper that imports `defn/2`, `defn/3`, `defmacron/2`, `defmacron/3`
+  Helper that imports
+  `defn/2`,
+  `defn/3`,
+  `defpn/2`,
+  `defpn/3`,
+  `defmacron/2`,
+  `defmacron/3`,
+  `defmacropn/2`,
+  `defmacropn/3`
 
   ## Examples
 
@@ -47,305 +55,138 @@ defmodule Defnamed do
   """
   defmacro __using__(_) do
     quote do
-      import Defnamed, only: [defn: 2, defn: 3, defmacron: 2, defmacron: 3]
+      import Defnamed,
+        only: [
+          defn: 2,
+          defn: 3,
+          defpn: 2,
+          defpn: 3,
+          defmacron: 2,
+          defmacron: 3,
+          defmacropn: 2,
+          defmacropn: 3
+        ]
     end
   end
 
-  @doc """
-  Define function with named arguments through public macro interface
+  [
+    {:def, [is_public?: true, is_macro?: false]},
+    {:defp, [is_public?: false, is_macro?: false]},
+    {:defmacro, [is_public?: true, is_macro?: true]},
+    {:defmacrop, [is_public?: false, is_macro?: true]}
+  ]
+  |> Enum.each(fn {raw_expression, [is_public?: is_public?, is_macro?: is_macro?]} ->
+    named_expression = "#{raw_expression}n" |> String.to_atom()
 
-  ## Examples
-
-  ```
-  iex> defmodule Ledger do
-  ...>   use #{__MODULE__}
-  ...>   defn transact(balance: balance, amount: _)
-  ...>          when is_integer(balance) and (balance < 0) do
-  ...>     {:error, :account_is_blocked}
-  ...>   end
-  ...>   defn transact(balance: balance, amount: amount)
-  ...>          when is_integer(balance) and is_integer(amount) and (balance >= amount) do
-  ...>     {:ok, balance + amount}
-  ...>   end
-  ...>   defn transact(balance: balance, amount: amount)
-  ...>          when is_integer(balance) and is_integer(amount) do
-  ...>     {:error, :insufficient_funds}
-  ...>   end
-  ...>   defn transact(balance: balance, amount: amount) do
-  ...>     raise("type error in transact(balance: \#{inspect(balance)}, amount: \#{inspect(amount)})")
-  ...>   end
-  ...> end
-  iex> quote do
-  ...>   require Ledger
-  ...>   balance = 100
-  ...>   amount = -10
-  ...>   Ledger.transact(balance: balance, amount: amount)
-  ...> end
-  ...> |> Code.eval_quoted
-  ...> |> elem(0)
-  {:ok, 90}
-  iex> quote do
-  ...>   require Ledger
-  ...>   balance = 100
-  ...>   amount = -10
-  ...>   Ledger.transact(amount: amount, balance: balance)
-  ...> end
-  ...> |> Code.eval_quoted
-  ...> |> elem(0)
-  {:ok, 90}
-  iex> quote do
-  ...>   require Ledger
-  ...>   foo = 100
-  ...>   amount = -10
-  ...>   Ledger.transact(amount: amount, foo: foo)
-  ...> end
-  ...> |> Code.compile_quoted
-  ** (Defnamed.Exception.InvalidArgNames) Elixir.DefnamedTest.Ledger.transact argument should be keyword list which can contain only [:amount, :balance] keys without duplication, but got invalid :foo key
-  ```
-  """
-  defmacro defn(
-             {:when, original_when_meta, [{original_name, original_meta, [original_args_kv]} | original_guards]},
-             compiletime_params,
-             do: original_body
-           ) do
-    %Macro.Env{module: caller_module_name} = __CALLER__
-
-    %__MODULE__{
-      do_name: do_name,
-      args_struct_ast: args_struct_ast,
-      caller: compiletime_caller
-    } = params = generate_params(original_name, original_args_kv, caller_module_name, compiletime_params)
-
-    :ok = validate_original_args_kv!(params, false)
-
-    caller_code =
-      compiletime_caller
+    low_level_expression =
+      is_macro?
       |> case do
-        nil ->
-          []
-
-        _ ->
-          [
-            quote do
-              unquote(compiletime_caller) = unquote(__CALLER__ |> Macro.escape())
-            end
-          ]
+        true -> :defp
+        false -> raw_expression
       end
 
-    code =
-      params
-      |> maybe_define_named_interface(true, false)
-      |> Enum.concat([
-        quote do
-          def unquote({:when, original_when_meta, [{do_name, original_meta, [args_struct_ast]} | original_guards]}) do
-            (unquote_splicing([caller_code, original_body]))
-          end
+    defmacro unquote(named_expression)(
+               {:when, original_when_meta, [{original_name, original_meta, [original_args_kv]} | original_guards]},
+               compiletime_params,
+               do: original_body
+             ) do
+      low_level_expression = unquote(low_level_expression)
+      %Macro.Env{module: caller_module_name} = __CALLER__
+
+      %__MODULE__{
+        do_name: do_name,
+        args_struct_ast: args_struct_ast,
+        caller: compiletime_caller
+      } = params = generate_params(original_name, original_args_kv, caller_module_name, compiletime_params)
+
+      :ok = validate_original_args_kv!(params, false)
+
+      caller_code =
+        compiletime_caller
+        |> case do
+          nil ->
+            []
+
+          _ ->
+            [
+              quote do
+                unquote(compiletime_caller) = unquote(__CALLER__ |> Macro.escape())
+              end
+            ]
         end
-      ])
 
-    quote do
-      (unquote_splicing(code))
-    end
-  end
+      code =
+        params
+        |> maybe_define_named_interface(unquote(is_public?), unquote(is_macro?))
+        |> Enum.concat([
+          quote do
+            unquote(low_level_expression)(
+              unquote({:when, original_when_meta, [{do_name, original_meta, [args_struct_ast]} | original_guards]}),
+              do: (unquote_splicing([caller_code, original_body]))
+            )
+          end
+        ])
 
-  defmacro defn(
-             {original_name, original_meta, [original_args_kv]},
-             compiletime_params,
-             do: original_body
-           ) do
-    %Macro.Env{module: caller_module_name} = __CALLER__
-
-    %__MODULE__{
-      do_name: do_name,
-      args_struct_ast: args_struct_ast,
-      caller: compiletime_caller
-    } = params = generate_params(original_name, original_args_kv, caller_module_name, compiletime_params)
-
-    :ok = validate_original_args_kv!(params, false)
-
-    caller_code =
-      compiletime_caller
-      |> case do
-        nil ->
-          []
-
-        _ ->
-          [
-            quote do
-              unquote(compiletime_caller) = unquote(__CALLER__ |> Macro.escape())
-            end
-          ]
+      quote do
+        (unquote_splicing(code))
       end
+    end
 
-    code =
-      params
-      |> maybe_define_named_interface(true, false)
-      |> Enum.concat([
-        quote do
-          def unquote({do_name, original_meta, [args_struct_ast]}) do
-            (unquote_splicing([caller_code, original_body]))
-          end
+    defmacro unquote(named_expression)(
+               {original_name, original_meta, [original_args_kv]},
+               compiletime_params,
+               do: original_body
+             ) do
+      low_level_expression = unquote(low_level_expression)
+      %Macro.Env{module: caller_module_name} = __CALLER__
+
+      %__MODULE__{
+        do_name: do_name,
+        args_struct_ast: args_struct_ast,
+        caller: compiletime_caller
+      } = params = generate_params(original_name, original_args_kv, caller_module_name, compiletime_params)
+
+      :ok = validate_original_args_kv!(params, false)
+
+      caller_code =
+        compiletime_caller
+        |> case do
+          nil ->
+            []
+
+          _ ->
+            [
+              quote do
+                unquote(compiletime_caller) = unquote(__CALLER__ |> Macro.escape())
+              end
+            ]
         end
-      ])
 
-    quote do
-      (unquote_splicing(code))
-    end
-  end
+      code =
+        params
+        |> maybe_define_named_interface(unquote(is_public?), unquote(is_macro?))
+        |> Enum.concat([
+          quote do
+            unquote(low_level_expression)(
+              unquote({do_name, original_meta, [args_struct_ast]}),
+              do: (unquote_splicing([caller_code, original_body]))
+            )
+          end
+        ])
 
-  defmacro defn(header, body) do
-    quote do
-      defn(unquote(header), [], unquote(body))
-    end
-  end
-
-  @doc """
-  Define macro with named arguments through public macro interface
-
-  ## Examples
-
-  ```
-  iex> defmodule MyException do
-  ...>   use #{__MODULE__}
-  ...>   defexception [:message, :input, :reason]
-  ...>   defmacron invalid_type(message: message, input: input) do
-  ...>     quote do
-  ...>       %unquote(__MODULE__){message: unquote(message), input: unquote(input), reason: :invalid_type}
-  ...>     end
-  ...>   end
-  ...>   defmacron invalid_format(message: message, input: input) do
-  ...>     quote do
-  ...>       %unquote(__MODULE__){message: unquote(message), input: unquote(input), reason: :invalid_format}
-  ...>     end
-  ...>   end
-  ...> end
-  iex> quote do
-  ...>   require MyException
-  ...>   message = "form user Dan"
-  ...>   input = 123
-  ...>   MyException.invalid_type(message: message, input: input)
-  ...> end
-  ...> |> Code.eval_quoted
-  ...> |> elem(0)
-  %{
-    __struct__: DefnamedTest.MyException,
-    __exception__: true,
-    input: 123,
-    message: "form user Dan",
-    reason: :invalid_type
-  }
-  iex> quote do
-  ...>   require MyException
-  ...>   message = "form user Dan"
-  ...>   input = "hello?"
-  ...>   MyException.invalid_format(input: input, message: message)
-  ...> end
-  ...> |> Code.eval_quoted
-  ...> |> elem(0)
-  %{
-    __struct__: DefnamedTest.MyException,
-    __exception__: true,
-    input: "hello?",
-    message: "form user Dan",
-    reason: :invalid_format
-  }
-  ```
-  """
-  defmacro defmacron(
-             {:when, original_when_meta, [{original_name, original_meta, [original_args_kv]} | original_guards]},
-             compiletime_params,
-             do: original_body
-           ) do
-    %Macro.Env{module: caller_module_name} = __CALLER__
-
-    %__MODULE__{
-      do_name: do_name,
-      args_struct_ast: args_struct_ast,
-      caller: compiletime_caller
-    } = params = generate_params(original_name, original_args_kv, caller_module_name, compiletime_params)
-
-    :ok = validate_original_args_kv!(params, false)
-
-    caller_code =
-      compiletime_caller
-      |> case do
-        nil ->
-          []
-
-        _ ->
-          [
-            quote do
-              unquote(compiletime_caller) = unquote(__CALLER__ |> Macro.escape())
-            end
-          ]
+      quote do
+        (unquote_splicing(code))
       end
-
-    code =
-      params
-      |> maybe_define_named_interface(true, true)
-      |> Enum.concat([
-        quote do
-          defp unquote({:when, original_when_meta, [{do_name, original_meta, [args_struct_ast]} | original_guards]}) do
-            (unquote_splicing([caller_code, original_body]))
-          end
-        end
-      ])
-
-    quote do
-      (unquote_splicing(code))
     end
-  end
 
-  defmacro defmacron(
-             {original_name, original_meta, [original_args_kv]},
-             compiletime_params,
-             do: original_body
-           ) do
-    %Macro.Env{module: caller_module_name} = __CALLER__
+    defmacro unquote(named_expression)(header, body) do
+      named_expression = unquote(named_expression)
 
-    %__MODULE__{
-      do_name: do_name,
-      args_struct_ast: args_struct_ast,
-      caller: compiletime_caller
-    } = params = generate_params(original_name, original_args_kv, caller_module_name, compiletime_params)
-
-    :ok = validate_original_args_kv!(params, false)
-
-    caller_code =
-      compiletime_caller
-      |> case do
-        nil ->
-          []
-
-        _ ->
-          [
-            quote do
-              unquote(compiletime_caller) = unquote(__CALLER__ |> Macro.escape())
-            end
-          ]
+      quote do
+        unquote(named_expression)(unquote(header), [], unquote(body))
       end
-
-    code =
-      params
-      |> maybe_define_named_interface(true, true)
-      |> Enum.concat([
-        quote do
-          defp unquote({do_name, original_meta, [args_struct_ast]}) do
-            (unquote_splicing([caller_code, original_body]))
-          end
-        end
-      ])
-
-    quote do
-      (unquote_splicing(code))
     end
-  end
-
-  defmacro defmacron(header, body) do
-    quote do
-      defmacron(unquote(header), [], unquote(body))
-    end
-  end
+  end)
 
   @spec validate_original_args_kv!(t, bool) :: :ok | no_return
   def validate_original_args_kv!(
@@ -447,67 +288,82 @@ defmodule Defnamed do
       false ->
         :ok = register_named_module(args_struct_module_name)
 
+        additional_macro_layer_expression =
+          is_public?
+          |> case do
+            true -> :defmacro
+            false -> :defmacrop
+          end
+
         additional_macro_layer = [
           quote do
-            defmacro unquote(original_name)() do
-              original_name = unquote(original_name)
+            unquote(additional_macro_layer_expression)(
+              unquote(original_name)(),
+              do:
+                (
+                  original_name = unquote(original_name)
 
-              quote do
-                unquote(original_name)([])
-              end
-            end
+                  quote do
+                    unquote(original_name)([])
+                  end
+                )
+            )
 
-            defmacro unquote(original_name)(kv) do
-              :ok =
-                %unquote(__MODULE__){
-                  unquote(params |> Macro.escape())
-                  | original_args_kv: kv
-                }
-                |> unquote(__MODULE__).validate_original_args_kv!(true)
-
-              do_name = unquote(do_name)
-              caller_module_name = unquote(caller_module_name)
-
-              unquote(is_macro?)
-              |> case do
-                true ->
-                  {struct_ast, _} =
-                    {
-                      :%,
-                      [],
-                      [
-                        {:__aliases__, [alias: false], unquote(args_struct_list_alias)},
-                        {:%{}, [], Enum.map(kv, fn {k, v} -> {k, Macro.escape(v)} end)}
-                      ]
+            unquote(additional_macro_layer_expression)(
+              unquote(original_name)(kv),
+              do:
+                (
+                  :ok =
+                    %unquote(__MODULE__){
+                      unquote(params |> Macro.escape())
+                      | original_args_kv: kv
                     }
-                    |> Code.eval_quoted()
+                    |> unquote(__MODULE__).validate_original_args_kv!(true)
 
-                  unquote(do_name)(struct_ast)
+                  do_name = unquote(do_name)
+                  caller_module_name = unquote(caller_module_name)
 
-                false ->
-                  struct_ast = {
-                    :%,
-                    [],
-                    [
-                      {:__aliases__, [alias: false], unquote(args_struct_list_alias)},
-                      {:%{}, [], kv}
-                    ]
-                  }
-
-                  unquote(is_public?)
+                  unquote(is_macro?)
                   |> case do
                     true ->
-                      quote do
-                        unquote(caller_module_name).unquote(do_name)(unquote(struct_ast))
-                      end
+                      {struct_ast, _} =
+                        {
+                          :%,
+                          [],
+                          [
+                            {:__aliases__, [alias: false], unquote(args_struct_list_alias)},
+                            {:%{}, [], Enum.map(kv, fn {k, v} -> {k, Macro.escape(v)} end)}
+                          ]
+                        }
+                        |> Code.eval_quoted()
+
+                      unquote(do_name)(struct_ast)
 
                     false ->
-                      quote do
-                        unquote(do_name)(unquote(struct_ast))
+                      struct_ast = {
+                        :%,
+                        [],
+                        [
+                          {:__aliases__, [alias: false], unquote(args_struct_list_alias)},
+                          {:%{}, [], kv}
+                        ]
+                      }
+
+                      unquote(is_public?)
+                      |> case do
+                        true ->
+                          quote do
+                            unquote(caller_module_name).unquote(do_name)(unquote(struct_ast))
+                          end
+
+                        false ->
+                          quote do
+                            unquote(do_name)(unquote(struct_ast))
+                          end
                       end
                   end
-              end
-            end
+                )
+            )
           end
         ]
 
