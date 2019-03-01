@@ -60,9 +60,9 @@ jobs:
       - <<: *fetch_submodules
       - restore_cache:
           keys:
-            - v1-test-{{ checksum "mix.lock" }}-{{ .Revision }}
-            - v1-test-{{ checksum "mix.lock" }}-
-            - v1-test-
+            - v2-test-{{ checksum "mix.lock" }}-{{ .Revision }}
+            - v2-test-{{ checksum "mix.lock" }}-
+            - v2-test-
       - <<: *hex_auth
       - <<: *fetch_dependencies
       - <<: *compile_dependencies
@@ -78,7 +78,7 @@ jobs:
           command:    mix dialyzer --halt-exit-status
           no_output_timeout: 15m
       - save_cache:
-          key: v1-test-{{ checksum "mix.lock" }}-{{ .Revision }}
+          key: v2-test-{{ checksum "mix.lock" }}-{{ .Revision }}
           paths:
             - _build
             - deps
@@ -98,15 +98,15 @@ jobs:
       - <<: *fetch_submodules
       - restore_cache:
           keys:
-            - v1-doc-{{ checksum "mix.lock" }}-{{ .Revision }}
-            - v1-doc-{{ checksum "mix.lock" }}-
-            - v1-doc-
+            - v2-doc-{{ checksum "mix.lock" }}-{{ .Revision }}
+            - v2-doc-{{ checksum "mix.lock" }}-
+            - v2-doc-
       - <<: *hex_auth
       - <<: *fetch_dependencies
       - <<: *compile_dependencies
       - <<: *compile_protocols
       - save_cache:
-          key: v1-doc-{{ checksum "mix.lock" }}-{{ .Revision }}
+          key: v2-doc-{{ checksum "mix.lock" }}-{{ .Revision }}
           paths:
             - _build
             - deps
