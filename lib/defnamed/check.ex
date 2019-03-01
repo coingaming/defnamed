@@ -57,7 +57,7 @@ defmodule Defnamed.Check do
   :ok
 
   iex> #{__MODULE__}.validate_kv!(123, "Example keyword")
-  ** (Defnamed.Exception.NotKeyword) Example keyword should be keyword list without keys duplication, but argument is not a keyword 123
+  ** (Defnamed.Exception.NotKeyword) Example keyword should be keyword list without keys duplication, but argument is not a keyword: 123
 
   iex> #{__MODULE__}.validate_kv!([a: 1, b: 2, b: 2], "Example keyword")
   ** (Defnamed.Exception.ArgNamesDuplication) Example keyword should be keyword list without keys duplication, but keys [:b] are duplicated
@@ -81,7 +81,7 @@ defmodule Defnamed.Check do
   :ok
 
   iex> #{__MODULE__}.validate_kv!(123, MapSet.new([:a, :b]), [:a], "Example keyword")
-  ** (Defnamed.Exception.NotKeyword) Example keyword should be keyword list which can contain only [:a, :b] keys without duplication, and mandatory [:a] keys, but argument is not a keyword 123
+  ** (Defnamed.Exception.NotKeyword) Example keyword should be keyword list which can contain only [:a, :b] keys without duplication, and mandatory [:a] keys, but argument is not a keyword: 123
 
   iex> #{__MODULE__}.validate_kv!([a: 1, b: 2, b: 2], MapSet.new([:a, :b]), [:a], "Example keyword")
   ** (Defnamed.Exception.ArgNamesDuplication) Example keyword should be keyword list which can contain only [:a, :b] keys without duplication, and mandatory [:a] keys, but keys [:b] are duplicated
@@ -162,7 +162,7 @@ defmodule Defnamed.Check do
     |> Keyword.keyword?()
     |> case do
       true -> ok()
-      false -> not_keyword("#{message}, but argument is not a keyword #{inspect(kv)}")
+      false -> not_keyword("#{message}, but argument is not a keyword: #{inspect(kv)}")
     end
   end
 

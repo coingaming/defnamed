@@ -5,6 +5,7 @@
     # Ecto
 
     ## schema
+    defn: :*,
     field: :*,
     belongs_to: :*,
     has_one: :*,
