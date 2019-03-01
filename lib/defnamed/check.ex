@@ -120,7 +120,7 @@ defmodule Defnamed.Check do
 
       _ ->
         arg_names_duplication(
-          "#{message}, but keys #{Enum.uniq(Keyword.keys(kv) -- Keyword.keys(kv_uniq))} are duplicated"
+          "#{message}, but keys #{Enum.uniq(Keyword.keys(kv) -- Keyword.keys(kv_uniq)) |> inspect} are duplicated"
         )
     end
   end
