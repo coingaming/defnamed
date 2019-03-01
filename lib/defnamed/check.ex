@@ -23,6 +23,14 @@ defmodule Defnamed.Check do
     end
   end)
 
+  @spec validate_kv!(term, String.t()) :: :ok | no_return
+  def validate_kv!(kv, message)
+      when is_binary(message) do
+    kv
+    |> validate_kv(message)
+    |> maybe_raise
+  end
+
   @spec validate_kv!(term, MapSet.t(atom), list(atom), String.t()) :: :ok | no_return
   def validate_kv!(kv, %MapSet{} = valid_keys, required_keys, message)
       when is_list(required_keys) and is_binary(message) do
@@ -43,9 +51,41 @@ defmodule Defnamed.Check do
     end
   end)
 
+  @spec validate_kv(term, String.t()) :: t
+  defp validate_kv(kv, raw_message) when is_binary(raw_message) do
+    message = "#{raw_message} should be keyword list without keys duplication"
+
+    with ok() <- validate_kv_type(kv, message),
+         ok() <- validate_kv_uniqueness(kv, message) do
+      ok()
+    else
+      error -> error
+    end
+  end
+
   @spec validate_kv(term, MapSet.t(atom), list(atom), String.t()) :: t
-  defp validate_kv(kv, %MapSet{} = valid_keys, required_keys, message)
-       when is_list(required_keys) and is_binary(message) do
+  defp validate_kv(kv, %MapSet{} = valid_keys, required_keys, raw_message)
+       when is_list(required_keys) and is_binary(raw_message) do
+    validity_message =
+      "#{raw_message} should be keyword list which can contain only #{
+        valid_keys |> MapSet.to_list() |> inspect
+      } keys without duplication"
+
+    mandatory_message =
+      required_keys
+      |> case do
+        [] -> ""
+        [_ | _] -> "and mandatory #{inspect(required_keys)} keys"
+      end
+
+    message =
+      [
+        validity_message,
+        mandatory_message
+      ]
+      |> Enum.filter(&(&1 != ""))
+      |> Enum.join(", ")
+
     with ok() <- validate_kv_type(kv, message),
          ok() <- validate_kv_uniqueness(kv, message),
          ok() <- validate_kv_required_keys(kv, required_keys, message),
@@ -62,18 +102,26 @@ defmodule Defnamed.Check do
     |> Keyword.keyword?()
     |> case do
       true -> ok()
-      false -> not_keyword(message)
+      false -> not_keyword("#{message}, but argument is not a keyword #{inspect(kv)}")
     end
   end
 
   @spec validate_kv_uniqueness(Keyword.t(), String.t()) :: :ok | E.ArgNamesDuplication.t()
   defp validate_kv_uniqueness(kv, message) when is_list(kv) and is_binary(message) do
-    kv
-    |> Enum.uniq_by(fn {k, _} -> k end)
+    kv_uniq =
+      kv
+      |> Enum.uniq_by(fn {k, _} -> k end)
+
+    kv_uniq
     |> length
     |> case do
-      l when l == length(kv) -> ok()
-      _ -> arg_names_duplication(message)
+      l when l == length(kv) ->
+        ok()
+
+      _ ->
+        arg_names_duplication(
+          "#{message}, but keys #{Enum.uniq(Keyword.keys(kv) -- Keyword.keys(kv_uniq))} are duplicated"
+        )
     end
   end
 
@@ -88,8 +136,12 @@ defmodule Defnamed.Check do
       actual_keys
       |> MapSet.member?(key)
       |> case do
-        true -> {:cont, ok()}
-        false -> {:halt, missing_required_args(message)}
+        true ->
+          {:cont, ok()}
+
+        false ->
+          {:halt,
+           missing_required_args("#{message}, but required #{inspect(key)} key is not presented")}
       end
     end)
   end
@@ -103,7 +155,7 @@ defmodule Defnamed.Check do
       |> MapSet.member?(key)
       |> case do
         true -> {:cont, ok()}
-        false -> {:halt, invalid_arg_names(message)}
+        false -> {:halt, invalid_arg_names("#{message}, but got invalid #{inspect(key)} key")}
       end
     end)
   end

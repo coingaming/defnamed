@@ -27,6 +27,17 @@ defmodule Defnamed do
   @enforce_keys @keys
   defstruct @keys
 
+  @type t :: %__MODULE__{
+          args_struct_list_alias: list(atom),
+          args_struct_module_name: module,
+          args_struct_ast: tuple,
+          caller_module_name: module,
+          original_name: atom,
+          original_args_kv: Keyword.t(),
+          do_name: atom,
+          caller: Macro.Env.t()
+        }
+
   @doc """
   Helper that imports `defn/2`, `defn/3`
 
@@ -84,7 +95,7 @@ defmodule Defnamed do
   ...>   Ledger.transact(amount: -10, foo: 100)
   ...> end
   ...> |> Code.compile_quoted
-  ** (ArgumentError) Elixir.DefnamedTest.Ledger.transact was called with unacceptable aruments [:foo], it only can accept [:amount, :balance]
+  ** (Defnamed.Exception.InvalidArgNames) Elixir.DefnamedTest.Ledger.transact argument should be keyword list which can contain only [:amount, :balance] keys without duplication, but got invalid :foo key
   ```
   """
   defmacro defn(
@@ -191,17 +202,8 @@ defmodule Defnamed do
     end
   end
 
-  def validate_original_args_kv!(%__MODULE__{} = params, validate_keys?)
-      when is_boolean(validate_keys?) do
-    params
-    |> validate_original_args_kv(validate_keys?)
-    |> case do
-      :ok -> :ok
-      {:error, error} -> raise ArgumentError, message: error
-    end
-  end
-
-  def validate_original_args_kv(
+  @spec validate_original_args_kv!(t, bool) :: :ok | no_return
+  def validate_original_args_kv!(
         %__MODULE__{
           caller_module_name: caller_module_name,
           original_name: original_name,
@@ -211,42 +213,25 @@ defmodule Defnamed do
         validate_keys?
       )
       when is_boolean(validate_keys?) do
-    original_args_kv
-    |> Keyword.keyword?()
+    validate_keys?
     |> case do
-      true when validate_keys? ->
+      true ->
         acceptable_arg_names =
           args_struct_module_name.__struct__()
           |> Map.from_struct()
           |> Map.keys()
           |> MapSet.new()
 
+        message = "#{caller_module_name}.#{original_name} argument"
+
         original_args_kv
-        |> Keyword.keys()
-        |> Enum.filter(&(not MapSet.member?(acceptable_arg_names, &1)))
-        |> case do
-          [] ->
-            :ok
-
-          [_ | _] = unacceptable_args ->
-            message =
-              "#{caller_module_name}.#{original_name} was called with unacceptable aruments #{
-                inspect(unacceptable_args)
-              }, it only can accept #{acceptable_arg_names |> MapSet.to_list() |> inspect}"
-
-            {:error, message}
-        end
-
-      true ->
-        :ok
+        |> Check.validate_kv!(acceptable_arg_names, [], message)
 
       false ->
-        message =
-          "#{caller_module_name}.#{original_name} can accept only keyword list as named argument, but got #{
-            inspect(original_args_kv)
-          }"
+        message = "#{caller_module_name}.#{original_name} argument"
 
-        {:error, message}
+        original_args_kv
+        |> Check.validate_kv!(message)
     end
   end
 
@@ -291,10 +276,7 @@ defmodule Defnamed do
   end
 
   defp validate_compiletime_params!(compiletime_params) do
-    message =
-      "Defnamed compiletime parameters argument should be keyword list wich can contain only #{
-        inspect(@compilertime_params)
-      } keys without duplication, but got #{inspect(compiletime_params)}."
+    message = "Defnamed compiletime parameters argument"
 
     compiletime_params
     |> Check.validate_kv!(@compilertime_params_mapset, [], message)
