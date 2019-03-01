@@ -11,7 +11,7 @@ check_vars: &check_vars
 setup_ssh_key: &setup_ssh_key
   run:
     name:       Setup robot SSH key
-    command:    echo "$ROBOT_SSH_KEY" | base64 --decode > $HOME/.ssh/id_rsa.robot && chmod 600 $HOME/.ssh/id_rsa.robot && ssh-add $HOME/.ssh/id_rsa.robot
+    command:    echo "$ROBOT_SSH_KEY" | base64 -d > $HOME/.ssh/id_rsa.robot && chmod 600 $HOME/.ssh/id_rsa.robot && ssh-add $HOME/.ssh/id_rsa.robot
 
 setup_ssh_config: &setup_ssh_config
   run:
