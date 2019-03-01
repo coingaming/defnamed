@@ -94,7 +94,7 @@ defmodule Defnamed.Check do
   ```
   """
   @spec validate_kv!(term, MapSet.t(atom), list(atom), String.t()) :: :ok | no_return
-  def validate_kv!(kv, %MapSet{} = valid_keys, required_keys, message)
+  def validate_kv!(kv, valid_keys, required_keys, message)
       when is_list(required_keys) and is_binary(message) do
     kv
     |> validate_kv(valid_keys, required_keys, message)
@@ -126,7 +126,7 @@ defmodule Defnamed.Check do
   end
 
   @spec validate_kv(term, MapSet.t(atom), list(atom), String.t()) :: t
-  defp validate_kv(kv, %MapSet{} = valid_keys, required_keys, raw_message)
+  defp validate_kv(kv, valid_keys, required_keys, raw_message)
        when is_list(required_keys) and is_binary(raw_message) do
     validity_message =
       "#{raw_message} should be keyword list which can contain only #{valid_keys |> MapSet.to_list() |> inspect} keys without duplication"
@@ -204,7 +204,7 @@ defmodule Defnamed.Check do
   end
 
   @spec validate_kv_keys(Keyword.t(), MapSet.t(atom), String.t()) :: :ok | E.InvalidArgNames.t()
-  defp validate_kv_keys(kv, %MapSet{} = valid_keys, message)
+  defp validate_kv_keys(kv, valid_keys, message)
        when is_list(kv) and is_binary(message) do
     kv
     |> Enum.reduce_while(ok(), fn {key, _}, ok() ->

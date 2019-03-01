@@ -11,9 +11,6 @@ defmodule Defnamed do
     @compilertime_caller
   ]
 
-  @compilertime_params_mapset @compilertime_params
-                              |> MapSet.new()
-
   @keys [
     :args_struct_list_alias,
     :args_struct_module_name,
@@ -269,7 +266,7 @@ defmodule Defnamed do
     message = "Defnamed compiletime parameters argument"
 
     compiletime_params
-    |> Check.validate_kv!(@compilertime_params_mapset, [], message)
+    |> Check.validate_kv!(MapSet.new(@compilertime_params), [], message)
   end
 
   defp maybe_define_named_interface(
