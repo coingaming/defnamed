@@ -1,0 +1,131 @@
+defaults: &defaults
+  working_directory: /app
+  docker:
+    - image: heathmont/elixir-ci:1.8.1-alpine
+
+check_vars: &check_vars
+  run:
+    name:       Check variables
+    command:    ./scripts/check-vars.sh "in system" "ROBOT_SSH_KEY"
+
+setup_ssh_key: &setup_ssh_key
+  run:
+    name:       Setup robot SSH key
+    command:    echo "$ROBOT_SSH_KEY" | base64 --decode > $HOME/.ssh/id_rsa.robot && chmod 600 $HOME/.ssh/id_rsa.robot && ssh-add $HOME/.ssh/id_rsa.robot
+
+setup_ssh_config: &setup_ssh_config
+  run:
+    name:        Setup SSH config
+    command:     echo -e "Host *\n IdentityFile $HOME/.ssh/id_rsa.robot\n IdentitiesOnly yes" > $HOME/.ssh/config
+
+fetch_submodules: &fetch_submodules
+  run:
+    name:       Fetch submodules
+    command:    git submodule update --init --recursive
+
+hex_auth: &hex_auth
+  run:
+    name:       Hex auth
+    command:    mix hex.organization auth coingaming --key $HEX_API_KEY
+
+fetch_dependencies: &fetch_dependencies
+  run:
+    name:       Fetch dependencies
+    command:    mix deps.get
+
+compile_dependencies: &compile_dependencies
+  run:
+    name:       Compile dependencies
+    command:    mix deps.compile
+
+compile_protocols: &compile_protocols
+  run:
+    name:       Compile protocols
+    command:    mix compile.protocols --warnings-as-errors
+
+version: 2
+jobs:
+  test:
+    <<: *defaults
+    working_directory: /app
+    environment:
+      MIX_ENV: test
+    steps:
+      - checkout
+      - run:
+          name:       Check variables
+          command:    ./scripts/check-vars.sh "in system" "ROBOT_SSH_KEY"
+      - <<: *setup_ssh_key
+      - <<: *setup_ssh_config
+      - <<: *fetch_submodules
+      - restore_cache:
+          keys:
+            - v1-test-{{ checksum "mix.lock" }}-{{ .Revision }}
+            - v1-test-{{ checksum "mix.lock" }}-
+            - v1-test-
+      - <<: *hex_auth
+      - <<: *fetch_dependencies
+      - <<: *compile_dependencies
+      - <<: *compile_protocols
+      - run:
+          name:       Run tests
+          command:    mix coveralls
+      - run:
+          name:       Run style checks
+          command:    mix credo --strict
+      - run:
+          name:       Run Dialyzer type checks
+          command:    mix dialyzer --halt-exit-status
+          no_output_timeout: 15m
+      - save_cache:
+          key: v1-test-{{ checksum "mix.lock" }}-{{ .Revision }}
+          paths:
+            - _build
+            - deps
+            - ~/.mix
+  doc:
+    <<: *defaults
+    environment:
+      MIX_ENV: dev
+    working_directory: /app
+    steps:
+      - checkout
+      - run:
+          name:       Check variables
+          command:    ./scripts/check-vars.sh "in system" "ROBOT_SSH_KEY"
+      - <<: *setup_ssh_key
+      - <<: *setup_ssh_config
+      - <<: *fetch_submodules
+      - restore_cache:
+          keys:
+            - v1-doc-{{ checksum "mix.lock" }}-{{ .Revision }}
+            - v1-doc-{{ checksum "mix.lock" }}-
+            - v1-doc-
+      - <<: *hex_auth
+      - <<: *fetch_dependencies
+      - <<: *compile_dependencies
+      - <<: *compile_protocols
+      - save_cache:
+          key: v1-doc-{{ checksum "mix.lock" }}-{{ .Revision }}
+          paths:
+            - _build
+            - deps
+            - ~/.mix
+      - run:
+          name:       Compile documentation
+          command:    mix docs
+
+workflows:
+  version: 2
+  test-doc:
+    jobs:
+      - test:
+          context: global
+          filters:
+            branches:
+              only: /.*/
+      - doc:
+          context: global
+          filters:
+            branches:
+              only: /.*/
