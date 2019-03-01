@@ -14,7 +14,7 @@
         #
         # You can give explicit globs or simply directories.
         # In the latter case `**/*.{ex,exs}` will be used.
-      #
+        #
         included: ["lib/", "src/", "web/", "apps/"],
         excluded: [~r"/_build/", ~r"/deps/"]
       },
@@ -73,7 +73,6 @@
         #
         {Credo.Check.Design.TagTODO, priority: :low, exit_status: 0},
         {Credo.Check.Design.TagFIXME, priority: :low, exit_status: 0},
-
         {Credo.Check.Readability.FunctionNames},
         {Credo.Check.Readability.LargeNumbers},
         {Credo.Check.Readability.MaxLineLength, false},
@@ -91,7 +90,6 @@
         {Credo.Check.Readability.VariableNames},
         {Credo.Check.Readability.Semicolons},
         {Credo.Check.Readability.SpaceAfterCommas, priority: :low},
-
         {Credo.Check.Refactor.DoubleBooleanNegation, priority: :high},
         {Credo.Check.Refactor.CondStatements},
         {Credo.Check.Refactor.CyclomaticComplexity, priority: :high, exit_status: 2, max_complexity: 12},
@@ -103,7 +101,6 @@
         {Credo.Check.Refactor.Nesting, max_nesting: 3, priority: :high, exit_status: 2},
         {Credo.Check.Refactor.PipeChainStart, false},
         {Credo.Check.Refactor.UnlessWithElse, priority: :higher, exit_status: 2},
-
         {Credo.Check.Warning.BoolOperationOnSameValues, priority: :high, exit_status: 2},
         {Credo.Check.Warning.IExPry, priority: :higher, exit_status: 2},
         {Credo.Check.Warning.IoInspect, priority: :higher, exit_status: 2},
@@ -134,7 +131,7 @@
         {Credo.Check.Warning.NameRedeclarationByAssignment, false},
         {Credo.Check.Warning.NameRedeclarationByCase, priority: :normal},
         {Credo.Check.Warning.NameRedeclarationByDef, priority: :normal},
-        {Credo.Check.Warning.NameRedeclarationByFn, priority: :normal},
+        {Credo.Check.Warning.NameRedeclarationByFn, priority: :normal}
 
         # Custom checks can be created using `mix credo.gen.check`.
         #

@@ -61,7 +61,7 @@ defmodule Defnamed do
 
   ```
   iex> defmodule Ledger do
-  ...>   use Defnamed
+  ...>   use #{__MODULE__}
   ...>   defn transact(balance: balance, amount: _)
   ...>          when is_integer(balance) and (balance < 0) do
   ...>     {:error, :account_is_blocked}
@@ -99,8 +99,7 @@ defmodule Defnamed do
   ```
   """
   defmacro defn(
-             {:when, original_when_meta,
-              [{original_name, original_meta, [original_args_kv]} | original_guards]},
+             {:when, original_when_meta, [{original_name, original_meta, [original_args_kv]} | original_guards]},
              compiletime_params,
              do: original_body
            ) do
@@ -110,9 +109,7 @@ defmodule Defnamed do
       do_name: do_name,
       args_struct_ast: args_struct_ast,
       caller: compiletime_caller
-    } =
-      params =
-      generate_params(original_name, original_args_kv, caller_module_name, compiletime_params)
+    } = params = generate_params(original_name, original_args_kv, caller_module_name, compiletime_params)
 
     :ok = validate_original_args_kv!(params, false)
 
@@ -135,10 +132,7 @@ defmodule Defnamed do
       |> maybe_define_named_interface(true)
       |> Enum.concat([
         quote do
-          def unquote(
-                {:when, original_when_meta,
-                 [{do_name, original_meta, [args_struct_ast]} | original_guards]}
-              ) do
+          def unquote({:when, original_when_meta, [{do_name, original_meta, [args_struct_ast]} | original_guards]}) do
             (unquote_splicing([caller_code, original_body]))
           end
         end
@@ -160,9 +154,7 @@ defmodule Defnamed do
       do_name: do_name,
       args_struct_ast: args_struct_ast,
       caller: compiletime_caller
-    } =
-      params =
-      generate_params(original_name, original_args_kv, caller_module_name, compiletime_params)
+    } = params = generate_params(original_name, original_args_kv, caller_module_name, compiletime_params)
 
     :ok = validate_original_args_kv!(params, false)
 

@@ -10,6 +10,23 @@ defmodule Defnamed.Exception do
                   |> Stream.map(&(&1 |> Atom.to_string() |> Macro.camelize()))
                   |> Enum.map(&Module.concat(__MODULE__, &1))
 
+  @doc """
+  List of pairs {error, Exception}
+
+  ## Examples
+
+  ```
+  iex> require #{__MODULE__}
+  #{__MODULE__}
+  iex> #{__MODULE__}.error_exception_list
+  [
+    not_keyword: #{__MODULE__}.NotKeyword,
+    invalid_arg_names: #{__MODULE__}.InvalidArgNames,
+    arg_names_duplication: #{__MODULE__}.ArgNamesDuplication,
+    missing_required_args: #{__MODULE__}.MissingRequiredArgs
+  ]
+  ```
+  """
   defmacro error_exception_list do
     @error_list
     |> Enum.zip(@exception_list)
