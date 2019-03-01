@@ -3,10 +3,10 @@ defmodule DefnamedTest do
   use Defnamed
   doctest Defnamed
 
-  defn function_basic_test(a: a, b: b) when is_binary(a) and is_binary(b), do: a <> " " <> b
-  defn function_basic_test(a: a, b: b) when is_binary(a), do: a <> " " <> inspect(b)
-  defn function_basic_test(a: a, b: b) when is_binary(b), do: inspect(a) <> " " <> b
-  defn function_basic_test(a: a, b: b), do: inspect(a) <> " " <> inspect(b)
+  defpn function_basic_test(a: a, b: b) when is_binary(a) and is_binary(b), do: a <> " " <> b
+  defpn function_basic_test(a: a, b: b) when is_binary(a), do: a <> " " <> inspect(b)
+  defpn function_basic_test(a: a, b: b) when is_binary(b), do: inspect(a) <> " " <> b
+  defpn function_basic_test(a: a, b: b), do: inspect(a) <> " " <> inspect(b)
 
   test "function_basic_test success" do
     a = "hello"
@@ -31,53 +31,11 @@ defmodule DefnamedTest do
     assert "nil nil" == function_basic_test()
   end
 
-  test "function_basic_test - not keyword" do
-    assert_raise Defnamed.Exception.NotKeyword,
-                 "Elixir.DefnamedTest.function_basic_test argument should be keyword list which can contain only [:a, :b] keys without duplication, but argument is not a keyword: {:a, [], DefnamedTest}",
-                 fn ->
-                   quote do
-                     require unquote(__MODULE__)
-                     a = 1
-                     unquote(__MODULE__).function_basic_test(a)
-                   end
-                   |> Code.compile_quoted()
-                 end
-  end
-
-  test "function_basic_test - key duplication" do
-    assert_raise Defnamed.Exception.ArgNamesDuplication,
-                 "Elixir.DefnamedTest.function_basic_test argument should be keyword list which can contain only [:a, :b] keys without duplication, but keys [:b] are duplicated",
-                 fn ->
-                   quote do
-                     require unquote(__MODULE__)
-                     a = "hello"
-                     b = "world"
-                     unquote(__MODULE__).function_basic_test(a: a, b: b, b: b)
-                   end
-                   |> Code.compile_quoted()
-                 end
-  end
-
-  test "function_basic_test - invalid key" do
-    assert_raise Defnamed.Exception.InvalidArgNames,
-                 "Elixir.DefnamedTest.function_basic_test argument should be keyword list which can contain only [:a, :b] keys without duplication, but got invalid :foo key",
-                 fn ->
-                   quote do
-                     require unquote(__MODULE__)
-                     a = "hello"
-                     b = "world"
-                     foo = "foo"
-                     unquote(__MODULE__).function_basic_test(a: a, b: b, foo: foo)
-                   end
-                   |> Code.compile_quoted()
-                 end
-  end
-
-  defn function_caller_test(hello: world) when is_binary(world), caller: caller do
+  defpn function_caller_test(hello: world) when is_binary(world), caller: caller do
     caller
   end
 
-  defn function_caller_test(hello: _), caller: caller do
+  defpn function_caller_test(hello: _), caller: caller do
     caller
   end
 
@@ -101,12 +59,12 @@ defmodule DefnamedTest do
     assert 3 == macro_basic_test(a: a, b: b)
   end
 
-  defmacron macro_caller_test(hello: world) when is_binary(world), caller: caller do
+  defmacropn macro_caller_test(hello: world) when is_binary(world), caller: caller do
     caller
     |> Macro.escape()
   end
 
-  defmacron macro_caller_test(hello: _), caller: caller do
+  defmacropn macro_caller_test(hello: _), caller: caller do
     caller
     |> Macro.escape()
   end

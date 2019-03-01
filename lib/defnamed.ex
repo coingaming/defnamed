@@ -301,10 +301,20 @@ defmodule Defnamed do
               unquote(original_name)(),
               do:
                 (
+                  caller_module_name = unquote(caller_module_name)
                   original_name = unquote(original_name)
 
-                  quote do
-                    unquote(original_name)([])
+                  unquote(is_public?)
+                  |> case do
+                    true ->
+                      quote do
+                        unquote(caller_module_name).unquote(original_name)([])
+                      end
+
+                    false ->
+                      quote do
+                        unquote(original_name)([])
+                      end
                   end
                 )
             )

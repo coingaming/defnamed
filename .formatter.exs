@@ -2,10 +2,15 @@
   inputs: [".credo.exs", ".formatter.exs", "mix.exs", "{config,lib,priv,rel,test}/**/*.{ex,exs}"],
   line_length: 140,
   locals_without_parens: [
+    # Defnamed sugar
+    defn: :*,
+    defpn: :*,
+    defmacron: :*,
+    defmacropn: :*,
+
     # Ecto
 
     ## schema
-    defn: :*,
     field: :*,
     belongs_to: :*,
     has_one: :*,
