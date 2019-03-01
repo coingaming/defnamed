@@ -3,65 +3,141 @@ defmodule DefnamedTest do
   use Defnamed
   doctest Defnamed
 
-  defn basic_test(a: a, b: b) when is_binary(a) and is_binary(b), do: a <> " " <> b
-  defn basic_test(a: a, b: b) when is_binary(a), do: a <> " " <> inspect(b)
-  defn basic_test(a: a, b: b) when is_binary(b), do: inspect(a) <> " " <> b
-  defn basic_test(a: a, b: b), do: inspect(a) <> " " <> inspect(b)
+  defn function_basic_test(a: a, b: b) when is_binary(a) and is_binary(b), do: a <> " " <> b
+  defn function_basic_test(a: a, b: b) when is_binary(a), do: a <> " " <> inspect(b)
+  defn function_basic_test(a: a, b: b) when is_binary(b), do: inspect(a) <> " " <> b
+  defn function_basic_test(a: a, b: b), do: inspect(a) <> " " <> inspect(b)
 
-  test "basic success" do
-    assert "hello world" == basic_test(a: "hello", b: "world")
-    assert "1 world" == basic_test(a: 1, b: "world")
-    assert "hello 1" == basic_test(a: "hello", b: 1)
-    assert "1 2" == basic_test(a: 1, b: 2)
+  test "function_basic_test success" do
+    a = "hello"
+    b = "world"
+    assert "hello world" == function_basic_test(a: a, b: b)
+
+    a = 1
+    b = "world"
+    assert "1 world" == function_basic_test(a: a, b: b)
+
+    a = "hello"
+    b = 1
+    assert "hello 1" == function_basic_test(a: a, b: b)
+
+    a = 1
+    b = 2
+    assert "1 2" == function_basic_test(a: a, b: b)
+
+    a = 1
+    assert "1 nil" == function_basic_test(a: a)
+
+    assert "nil nil" == function_basic_test()
   end
 
-  test "not keyword" do
+  test "function_basic_test - not keyword" do
     assert_raise Defnamed.Exception.NotKeyword,
-                 "Elixir.DefnamedTest.basic_test argument should be keyword list which can contain only [:a, :b] keys without duplication, but argument is not a keyword: 1",
+                 "Elixir.DefnamedTest.function_basic_test argument should be keyword list which can contain only [:a, :b] keys without duplication, but argument is not a keyword: {:a, [], DefnamedTest}",
                  fn ->
                    quote do
                      require unquote(__MODULE__)
-                     unquote(__MODULE__).basic_test(1)
+                     a = 1
+                     unquote(__MODULE__).function_basic_test(a)
                    end
                    |> Code.compile_quoted()
                  end
   end
 
-  test "key duplication" do
+  test "function_basic_test - key duplication" do
     assert_raise Defnamed.Exception.ArgNamesDuplication,
-                 "Elixir.DefnamedTest.basic_test argument should be keyword list which can contain only [:a, :b] keys without duplication, but keys [:b] are duplicated",
+                 "Elixir.DefnamedTest.function_basic_test argument should be keyword list which can contain only [:a, :b] keys without duplication, but keys [:b] are duplicated",
                  fn ->
                    quote do
                      require unquote(__MODULE__)
-                     unquote(__MODULE__).basic_test(a: "hello", b: "world", b: "world")
+                     a = "hello"
+                     b = "world"
+                     unquote(__MODULE__).function_basic_test(a: a, b: b, b: b)
                    end
                    |> Code.compile_quoted()
                  end
   end
 
-  test "invalid key" do
+  test "function_basic_test - invalid key" do
     assert_raise Defnamed.Exception.InvalidArgNames,
-                 "Elixir.DefnamedTest.basic_test argument should be keyword list which can contain only [:a, :b] keys without duplication, but got invalid :foo key",
+                 "Elixir.DefnamedTest.function_basic_test argument should be keyword list which can contain only [:a, :b] keys without duplication, but got invalid :foo key",
                  fn ->
                    quote do
                      require unquote(__MODULE__)
-                     unquote(__MODULE__).basic_test(a: "hello", b: "world", foo: 1)
+                     a = "hello"
+                     b = "world"
+                     foo = "foo"
+                     unquote(__MODULE__).function_basic_test(a: a, b: b, foo: foo)
                    end
                    |> Code.compile_quoted()
                  end
   end
 
-  defn caller_test(hello: world) when is_binary(world), caller: caller do
+  defn function_caller_test(hello: world) when is_binary(world), caller: caller do
     caller
   end
 
-  defn caller_test(hello: _), caller: caller do
+  defn function_caller_test(hello: _), caller: caller do
     caller
   end
 
-  test "can access __CALLER__" do
-    assert %Macro.Env{module: __MODULE__} = caller_test(hello: "world")
-    assert %Macro.Env{module: __MODULE__} = caller_test(hello: 123)
-    assert %Macro.Env{module: __MODULE__} = caller_test()
+  test "function_caller_test - can access __CALLER__" do
+    hello = "world"
+    assert %Macro.Env{module: __MODULE__} = function_caller_test(hello: hello)
+    hello = 123
+    assert %Macro.Env{module: __MODULE__} = function_caller_test(hello: hello)
+    assert %Macro.Env{module: __MODULE__} = function_caller_test()
+  end
+
+  defmacron macro_basic_test(a: a, b: b) do
+    quote do
+      unquote(a) + unquote(b)
+    end
+  end
+
+  test "macro_basic_test success" do
+    a = 1
+    b = 2
+    assert 3 == macro_basic_test(a: a, b: b)
+  end
+
+  defmacron macro_caller_test(hello: world) when is_binary(world), caller: caller do
+    caller
+    |> Macro.escape()
+  end
+
+  defmacron macro_caller_test(hello: _), caller: caller do
+    caller
+    |> Macro.escape()
+  end
+
+  test "macro_caller_test - can access __CALLER__" do
+    assert %Macro.Env{module: __MODULE__} = macro_caller_test(hello: "world")
+    assert %Macro.Env{module: __MODULE__} = macro_caller_test(hello: 123)
+    assert %Macro.Env{module: __MODULE__} = macro_caller_test()
+  end
+
+  defmacron number_pair(left: left, right: right) when is_number(left) and is_number(right) do
+    quote do
+      {unquote(left), unquote(right)}
+    end
+  end
+
+  defmacron number_pair(left: left, right: right) do
+    quote do
+      raise ArgumentError, unquote("invalid left = #{inspect(left)} OR right = #{inspect(right)}")
+    end
+  end
+
+  test "macro_guards" do
+    assert {1, 2} == number_pair(left: 1, right: 2)
+
+    assert_raise ArgumentError, "invalid left = 1 OR right = :foo", fn ->
+      quote do
+        require unquote(__MODULE__)
+        unquote(__MODULE__).number_pair(left: 1, right: :foo)
+      end
+      |> Code.compile_quoted()
+    end
   end
 end

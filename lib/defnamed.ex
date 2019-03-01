@@ -36,7 +36,7 @@ defmodule Defnamed do
         }
 
   @doc """
-  Helper that imports `defn/2`, `defn/3`
+  Helper that imports `defn/2`, `defn/3`, `defmacron/2`, `defmacron/3`
 
   ## Examples
 
@@ -47,7 +47,7 @@ defmodule Defnamed do
   """
   defmacro __using__(_) do
     quote do
-      import Defnamed, only: [defn: 2, defn: 3]
+      import Defnamed, only: [defn: 2, defn: 3, defmacron: 2, defmacron: 3]
     end
   end
 
@@ -77,19 +77,27 @@ defmodule Defnamed do
   ...> end
   iex> quote do
   ...>   require Ledger
-  ...>   Ledger.transact(balance: 100, amount: -10)
+  ...>   balance = 100
+  ...>   amount = -10
+  ...>   Ledger.transact(balance: balance, amount: amount)
   ...> end
   ...> |> Code.eval_quoted
-  {{:ok, 90}, []}
+  ...> |> elem(0)
+  {:ok, 90}
   iex> quote do
   ...>   require Ledger
-  ...>   Ledger.transact(amount: -10, balance: 100)
+  ...>   balance = 100
+  ...>   amount = -10
+  ...>   Ledger.transact(amount: amount, balance: balance)
   ...> end
   ...> |> Code.eval_quoted
-  {{:ok, 90}, []}
+  ...> |> elem(0)
+  {:ok, 90}
   iex> quote do
   ...>   require Ledger
-  ...>   Ledger.transact(amount: -10, foo: 100)
+  ...>   foo = 100
+  ...>   amount = -10
+  ...>   Ledger.transact(amount: amount, foo: foo)
   ...> end
   ...> |> Code.compile_quoted
   ** (Defnamed.Exception.InvalidArgNames) Elixir.DefnamedTest.Ledger.transact argument should be keyword list which can contain only [:amount, :balance] keys without duplication, but got invalid :foo key
@@ -126,7 +134,7 @@ defmodule Defnamed do
 
     code =
       params
-      |> maybe_define_named_interface(true)
+      |> maybe_define_named_interface(true, false)
       |> Enum.concat([
         quote do
           def unquote({:when, original_when_meta, [{do_name, original_meta, [args_struct_ast]} | original_guards]}) do
@@ -171,7 +179,7 @@ defmodule Defnamed do
 
     code =
       params
-      |> maybe_define_named_interface(true)
+      |> maybe_define_named_interface(true, false)
       |> Enum.concat([
         quote do
           def unquote({do_name, original_meta, [args_struct_ast]}) do
@@ -188,6 +196,154 @@ defmodule Defnamed do
   defmacro defn(header, body) do
     quote do
       defn(unquote(header), [], unquote(body))
+    end
+  end
+
+  @doc """
+  Define macro with named arguments through public macro interface
+
+  ## Examples
+
+  ```
+  iex> defmodule MyException do
+  ...>   use #{__MODULE__}
+  ...>   defexception [:message, :input, :reason]
+  ...>   defmacron invalid_type(message: message, input: input) do
+  ...>     quote do
+  ...>       %unquote(__MODULE__){message: unquote(message), input: unquote(input), reason: :invalid_type}
+  ...>     end
+  ...>   end
+  ...>   defmacron invalid_format(message: message, input: input) do
+  ...>     quote do
+  ...>       %unquote(__MODULE__){message: unquote(message), input: unquote(input), reason: :invalid_format}
+  ...>     end
+  ...>   end
+  ...> end
+  iex> quote do
+  ...>   require MyException
+  ...>   message = "form user Dan"
+  ...>   input = 123
+  ...>   MyException.invalid_type(message: message, input: input)
+  ...> end
+  ...> |> Code.eval_quoted
+  ...> |> elem(0)
+  %{
+    __struct__: DefnamedTest.MyException,
+    __exception__: true,
+    input: 123,
+    message: "form user Dan",
+    reason: :invalid_type
+  }
+  iex> quote do
+  ...>   require MyException
+  ...>   message = "form user Dan"
+  ...>   input = "hello?"
+  ...>   MyException.invalid_format(input: input, message: message)
+  ...> end
+  ...> |> Code.eval_quoted
+  ...> |> elem(0)
+  %{
+    __struct__: DefnamedTest.MyException,
+    __exception__: true,
+    input: "hello?",
+    message: "form user Dan",
+    reason: :invalid_format
+  }
+  ```
+  """
+  defmacro defmacron(
+             {:when, original_when_meta, [{original_name, original_meta, [original_args_kv]} | original_guards]},
+             compiletime_params,
+             do: original_body
+           ) do
+    %Macro.Env{module: caller_module_name} = __CALLER__
+
+    %__MODULE__{
+      do_name: do_name,
+      args_struct_ast: args_struct_ast,
+      caller: compiletime_caller
+    } = params = generate_params(original_name, original_args_kv, caller_module_name, compiletime_params)
+
+    :ok = validate_original_args_kv!(params, false)
+
+    caller_code =
+      compiletime_caller
+      |> case do
+        nil ->
+          []
+
+        _ ->
+          [
+            quote do
+              unquote(compiletime_caller) = unquote(__CALLER__ |> Macro.escape())
+            end
+          ]
+      end
+
+    code =
+      params
+      |> maybe_define_named_interface(true, true)
+      |> Enum.concat([
+        quote do
+          defp unquote({:when, original_when_meta, [{do_name, original_meta, [args_struct_ast]} | original_guards]}) do
+            (unquote_splicing([caller_code, original_body]))
+          end
+        end
+      ])
+
+    quote do
+      (unquote_splicing(code))
+    end
+  end
+
+  defmacro defmacron(
+             {original_name, original_meta, [original_args_kv]},
+             compiletime_params,
+             do: original_body
+           ) do
+    %Macro.Env{module: caller_module_name} = __CALLER__
+
+    %__MODULE__{
+      do_name: do_name,
+      args_struct_ast: args_struct_ast,
+      caller: compiletime_caller
+    } = params = generate_params(original_name, original_args_kv, caller_module_name, compiletime_params)
+
+    :ok = validate_original_args_kv!(params, false)
+
+    caller_code =
+      compiletime_caller
+      |> case do
+        nil ->
+          []
+
+        _ ->
+          [
+            quote do
+              unquote(compiletime_caller) = unquote(__CALLER__ |> Macro.escape())
+            end
+          ]
+      end
+
+    code =
+      params
+      |> maybe_define_named_interface(true, true)
+      |> Enum.concat([
+        quote do
+          defp unquote({do_name, original_meta, [args_struct_ast]}) do
+            (unquote_splicing([caller_code, original_body]))
+          end
+        end
+      ])
+
+    quote do
+      (unquote_splicing(code))
+    end
+  end
+
+  defmacro defmacron(header, body) do
+    quote do
+      defmacron(unquote(header), [], unquote(body))
     end
   end
 
@@ -278,7 +434,8 @@ defmodule Defnamed do
            original_args_kv: original_args_kv,
            do_name: do_name
          } = params,
-         is_public?
+         is_public?,
+         is_macro?
        )
        when is_boolean(is_public?) do
     args_struct_module_name
@@ -311,25 +468,43 @@ defmodule Defnamed do
               do_name = unquote(do_name)
               caller_module_name = unquote(caller_module_name)
 
-              struct_ast = {
-                :%,
-                [],
-                [
-                  {:__aliases__, [alias: false], unquote(args_struct_list_alias)},
-                  {:%{}, [], kv}
-                ]
-              }
-
-              unquote(is_public?)
+              unquote(is_macro?)
               |> case do
                 true ->
-                  quote do
-                    unquote(caller_module_name).unquote(do_name)(unquote(struct_ast))
-                  end
+                  {struct_ast, _} =
+                    {
+                      :%,
+                      [],
+                      [
+                        {:__aliases__, [alias: false], unquote(args_struct_list_alias)},
+                        {:%{}, [], Enum.map(kv, fn {k, v} -> {k, Macro.escape(v)} end)}
+                      ]
+                    }
+                    |> Code.eval_quoted()
+
+                  unquote(do_name)(struct_ast)
 
                 false ->
-                  quote do
-                    unquote(do_name)(unquote(struct_ast))
+                  struct_ast = {
+                    :%,
+                    [],
+                    [
+                      {:__aliases__, [alias: false], unquote(args_struct_list_alias)},
+                      {:%{}, [], kv}
+                    ]
+                  }
+
+                  unquote(is_public?)
+                  |> case do
+                    true ->
+                      quote do
+                        unquote(caller_module_name).unquote(do_name)(unquote(struct_ast))
+                      end
+
+                    false ->
+                      quote do
+                        unquote(do_name)(unquote(struct_ast))
+                      end
                   end
               end
             end
