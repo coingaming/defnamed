@@ -213,6 +213,8 @@ defmodule Defnamed do
         validate_keys?
       )
       when is_boolean(validate_keys?) do
+    message = "#{caller_module_name}.#{original_name} argument"
+
     validate_keys?
     |> case do
       true ->
@@ -222,14 +224,10 @@ defmodule Defnamed do
           |> Map.keys()
           |> MapSet.new()
 
-        message = "#{caller_module_name}.#{original_name} argument"
-
         original_args_kv
         |> Check.validate_kv!(acceptable_arg_names, [], message)
 
       false ->
-        message = "#{caller_module_name}.#{original_name} argument"
-
         original_args_kv
         |> Check.validate_kv!(message)
     end
