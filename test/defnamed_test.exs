@@ -3,7 +3,7 @@ defmodule DefnamedTest do
   use Defnamed
   doctest Defnamed
 
-  defpn function_basic_test(a: a, b: b) when is_binary(a) and is_binary(b), do: a <> " " <> b
+  defpn function_basic_test(a: a \\ nil, b: b \\ nil) when is_binary(a) and is_binary(b), do: a <> " " <> b
   defpn function_basic_test(a: a, b: b) when is_binary(a), do: a <> " " <> inspect(b)
   defpn function_basic_test(a: a, b: b) when is_binary(b), do: inspect(a) <> " " <> b
   defpn function_basic_test(a: a, b: b), do: inspect(a) <> " " <> inspect(b)
@@ -31,7 +31,7 @@ defmodule DefnamedTest do
     assert "nil nil" == function_basic_test()
   end
 
-  defpn function_caller_test(hello: world) when is_binary(world), caller: caller do
+  defpn function_caller_test(hello: world \\ nil) when is_binary(world), caller: caller do
     caller
   end
 
@@ -59,7 +59,7 @@ defmodule DefnamedTest do
     assert 3 == macro_basic_test(a: a, b: b)
   end
 
-  defmacropn macro_caller_test(hello: world) when is_binary(world), caller: caller do
+  defmacropn macro_caller_test(hello: world \\ nil) when is_binary(world), caller: caller do
     caller
     |> Macro.escape()
   end

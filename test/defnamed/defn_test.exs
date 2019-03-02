@@ -26,7 +26,7 @@ defmodule Defnamed.DefnTest do
     right = "bar"
     separator = 123
 
-    assert_raise ArgumentError, "separator should be string or nil (unset), but got: 123", fn ->
+    assert_raise ArgumentError, "separator should be string, but got: 123", fn ->
       DefnTest.concat(left: left, right: right, separator: separator)
     end
   end
@@ -83,5 +83,23 @@ defmodule Defnamed.DefnTest do
     incorrect_user = "jassy"
     assert DefnTest.validate_homepage(uri: uri, user: correct_user)
     refute DefnTest.validate_homepage(uri: uri, user: incorrect_user)
+  end
+
+  test "defn test default arguments" do
+    uri = URI.parse("https://anon.github.io")
+    assert DefnTest.validate_homepage(uri: uri)
+  end
+
+  test "defn required args" do
+    assert_raise Defnamed.Exception.MissingRequiredArgs,
+                 "Elixir.Defnamed.Support.DefnTest.validate_homepage argument should be keyword list which can contain only [:uri, :user] keys without duplication, and mandatory [:uri] keys, but required :uri key is not presented",
+                 fn ->
+                   quote do
+                     require unquote(DefnTest)
+                     user = "jessy"
+                     DefnTest.validate_homepage(user: user)
+                   end
+                   |> Code.compile_quoted()
+                 end
   end
 end
