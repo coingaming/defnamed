@@ -76,4 +76,12 @@ defmodule Defnamed.DefnTest do
                    |> Code.compile_quoted()
                  end
   end
+
+  test "defn pattern matching" do
+    uri = URI.parse("https://dan.github.io")
+    correct_user = "dan"
+    incorrect_user = "jassy"
+    assert DefnTest.validate_homepage(uri: uri, user: correct_user)
+    refute DefnTest.validate_homepage(uri: uri, user: incorrect_user)
+  end
 end
