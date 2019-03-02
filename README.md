@@ -7,7 +7,7 @@ Named (or labeled) arguments is powerful abstraction which simplifies complexity
 ```elixir
 # instead of standard call
 authenticate(
-  ip_address,
+  url,
   user,
   password,
   allow_http?
@@ -15,14 +15,14 @@ authenticate(
 
 # we will write
 authenticate(
-  ip_address: ip_address,
+  url: url,
   user: user,
   password: password,
   allow_http?: allow_http?
 )
 ```
 
-A lot of languages support named arguments natively (Scala, Kotlin, Smalltalk, R and others), but Elixir does not. Named arguments can be naively "emulated" with passing to functions one keyword list, map or Elixir structure, but it gives no compile-time guarantees what this function will be called properly (because Elixir is dynamically typed language and argument of function can't be checked in compile time).
+A lot of languages support named arguments by default (Scala, Kotlin, Smalltalk, R and others), but Elixir does not. Named arguments can be naively "emulated" with passing to functions one keyword list, map or Elixir structure, but it gives no compile-time guarantees what this function will be called properly (because Elixir is dynamically typed language and argument of function can't be checked in compile time).
 
 The main purpose of this package is to provide extended versions of standard `def/2`, `defp/2`, `defmacro/2`, `defmacrop/2` expressions with compile-time checked named arguments.
 
