@@ -318,6 +318,67 @@ defmodule Defnamed do
               end
           end
 
+        macro_layer_do_bloack =
+          is_macro?
+          |> case do
+            true ->
+              quote do
+                {struct_ast, _} =
+                  {
+                    :%,
+                    [],
+                    [
+                      {:__aliases__, [alias: false], unquote(args_struct_list_alias)},
+                      {:%{}, [], Enum.map(kv, fn {k, v} -> {k, Macro.escape(v)} end)}
+                    ]
+                  }
+                  |> Code.eval_quoted()
+
+                unquote(do_name)(struct_ast)
+              end
+
+            false ->
+              is_public?
+              |> case do
+                true ->
+                  quote do
+                    caller_module_name = unquote(caller_module_name)
+                    do_name = unquote(do_name)
+
+                    struct_ast = {
+                      :%,
+                      [],
+                      [
+                        {:__aliases__, [alias: false], unquote(args_struct_list_alias)},
+                        {:%{}, [], kv}
+                      ]
+                    }
+
+                    quote do
+                      unquote(caller_module_name).unquote(do_name)(unquote(struct_ast))
+                    end
+                  end
+
+                false ->
+                  quote do
+                    do_name = unquote(do_name)
+
+                    struct_ast = {
+                      :%,
+                      [],
+                      [
+                        {:__aliases__, [alias: false], unquote(args_struct_list_alias)},
+                        {:%{}, [], kv}
+                      ]
+                    }
+
+                    quote do
+                      unquote(do_name)(unquote(struct_ast))
+                    end
+                  end
+              end
+          end
+
         additional_macro_layer = [
           quote do
             unquote(additional_macro_layer_expression)(
@@ -336,48 +397,7 @@ defmodule Defnamed do
                     }
                     |> unquote(__MODULE__).validate_original_args_kv!(true)
 
-                  do_name = unquote(do_name)
-                  caller_module_name = unquote(caller_module_name)
-
-                  unquote(is_macro?)
-                  |> case do
-                    true ->
-                      {struct_ast, _} =
-                        {
-                          :%,
-                          [],
-                          [
-                            {:__aliases__, [alias: false], unquote(args_struct_list_alias)},
-                            {:%{}, [], Enum.map(kv, fn {k, v} -> {k, Macro.escape(v)} end)}
-                          ]
-                        }
-                        |> Code.eval_quoted()
-
-                      unquote(do_name)(struct_ast)
-
-                    false ->
-                      struct_ast = {
-                        :%,
-                        [],
-                        [
-                          {:__aliases__, [alias: false], unquote(args_struct_list_alias)},
-                          {:%{}, [], kv}
-                        ]
-                      }
-
-                      unquote(is_public?)
-                      |> case do
-                        true ->
-                          quote do
-                            unquote(caller_module_name).unquote(do_name)(unquote(struct_ast))
-                          end
-
-                        false ->
-                          quote do
-                            unquote(do_name)(unquote(struct_ast))
-                          end
-                      end
-                  end
+                  unquote(macro_layer_do_bloack)
                 )
             )
           end
