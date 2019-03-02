@@ -295,28 +295,34 @@ defmodule Defnamed do
             false -> :defmacrop
           end
 
+        zero_arity_shortcut =
+          is_public?
+          |> case do
+            true ->
+              quote do
+                caller_module_name = unquote(caller_module_name)
+                original_name = unquote(original_name)
+
+                quote do
+                  unquote(caller_module_name).unquote(original_name)([])
+                end
+              end
+
+            false ->
+              quote do
+                original_name = unquote(original_name)
+
+                quote do
+                  unquote(original_name)([])
+                end
+              end
+          end
+
         additional_macro_layer = [
           quote do
             unquote(additional_macro_layer_expression)(
               unquote(original_name)(),
-              do:
-                (
-                  caller_module_name = unquote(caller_module_name)
-                  original_name = unquote(original_name)
-
-                  unquote(is_public?)
-                  |> case do
-                    true ->
-                      quote do
-                        unquote(caller_module_name).unquote(original_name)([])
-                      end
-
-                    false ->
-                      quote do
-                        unquote(original_name)([])
-                      end
-                  end
-                )
+              do: unquote(zero_arity_shortcut)
             )
 
             unquote(additional_macro_layer_expression)(
