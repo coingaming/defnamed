@@ -32,7 +32,7 @@ defmodule Defnamed do
           original_name: atom,
           original_args_kv: Keyword.t(),
           do_name: atom,
-          caller: Macro.Env.t()
+          caller: tuple | nil
         }
 
   @doc """
