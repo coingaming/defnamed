@@ -223,9 +223,11 @@ defmodule Defnamed do
     :ok = validate_compiletime_params!(compiletime_params)
 
     args_struct_subname =
-      original_name
-      |> Atom.to_string()
-      |> Macro.camelize()
+      "__#{
+        original_name
+        |> Atom.to_string()
+        |> Macro.camelize()
+      }__"
       |> String.to_atom()
 
     args_struct_list_alias =
@@ -254,7 +256,7 @@ defmodule Defnamed do
       caller_module_name: caller_module_name,
       original_name: original_name,
       original_args_kv: original_args_kv,
-      do_name: String.to_atom("do_#{original_name}"),
+      do_name: String.to_atom("__#{original_name}__"),
       caller: compiletime_params[@compilertime_caller]
     }
   end
