@@ -102,4 +102,12 @@ defmodule Defnamed.DefnTest do
                    |> Code.compile_quoted()
                  end
   end
+
+  test "defn can combine" do
+    uri = URI.parse("https://dan.github.io")
+    user = "dan"
+    assert "homepage is good for you, dan" == DefnTest.generate_message(uri: uri, user: user)
+    user = "jessy"
+    assert "homepage is invalid for you, jessy" == DefnTest.generate_message(uri: uri, user: user)
+  end
 end

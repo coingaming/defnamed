@@ -17,4 +17,12 @@ defmodule Defnamed.Support.DefnTest do
   defn validate_homepage(uri: _) do
     false
   end
+
+  defn generate_message(user: user, uri: uri) do
+    validate_homepage(user: user, uri: uri)
+    |> case do
+      true -> concat(left: "homepage is good for you", separator: ", ", right: user)
+      false -> concat(left: "homepage is invalid for you", separator: ", ", right: user)
+    end
+  end
 end
