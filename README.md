@@ -1,5 +1,8 @@
 # Defnamed
 
+[![CircleCI](https://circleci.com/gh/coingaming/defnamed.svg?style=svg)](https://circleci.com/gh/coingaming/defnamed/)
+[![Documentation](https://raw.githubusercontent.com/tim2CF/static-asserts/master/documentation-passing.svg?sanitize=true)](https://coingaming.hexdocs.pm/defnamed/)
+
 <img src="priv/img/logo.jpg" width="300"/>
 
 Named (or labeled) arguments is powerful abstraction which simplifies complexity of big arity function calls. If function arity is more than 1, usually it's not obvious which arguments to pass in which order (especially in dynamically typed languages like Elixir). And named arguments solve this issue very elegant way:
@@ -33,7 +36,7 @@ The package can be installed by adding `defnamed` to list of dependencies in `mi
 ```elixir
 def deps do
   [
-    {:defnamed, "~> 0.1"}
+    {:defnamed, "~> 0.1", organization: "coingaming"}
   ]
 end
 ```
