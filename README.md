@@ -48,8 +48,8 @@ defmodule Num do
 
   defn to_string(
          number: number,
-         decimals: _,
-         view: _
+         decimals: _ \\ 2,
+         view: _  \\ nil
        )
        when is_integer(number) do
     Integer.to_string(number)
@@ -57,8 +57,8 @@ defmodule Num do
 
   defn to_string(
          number: number,
-         decimals: decimals \\ 2,
-         view: view \\ nil
+         decimals: decimals,
+         view: view
        )
        when is_float(number) and
               is_integer(decimals) and
@@ -88,7 +88,7 @@ iex> number = 12.123
 iex> Num.to_string(number: number, decimals: 2)
 "12.12"
 iex> number = 12
-iex> Num.to_string(number: number, decimals: 2)
+iex> Num.to_string(number: number)
 "12"
 iex> number = :foo
 ** (ArgumentError) term is not a number :foo
