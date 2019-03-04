@@ -18,6 +18,8 @@ defmodule Defnamed do
     :caller_module_name,
     :original_name,
     :original_args_kv,
+    :default_args_kv,
+    :required_args,
     :do_name,
     @compilertime_caller
   ]
@@ -31,8 +33,10 @@ defmodule Defnamed do
           caller_module_name: module,
           original_name: atom,
           original_args_kv: Keyword.t(),
+          default_args_kv: Keyword.t(),
+          required_args: list(atom),
           do_name: atom,
-          caller: Macro.Env.t()
+          caller: tuple | nil
         }
 
   @doc """
@@ -194,6 +198,7 @@ defmodule Defnamed do
           caller_module_name: caller_module_name,
           original_name: original_name,
           original_args_kv: original_args_kv,
+          required_args: required_args,
           args_struct_module_name: args_struct_module_name
         },
         validate_keys?
@@ -211,7 +216,7 @@ defmodule Defnamed do
           |> MapSet.new()
 
         original_args_kv
-        |> Check.validate_kv!(acceptable_arg_names, [], message)
+        |> Check.validate_kv!(acceptable_arg_names, required_args, message)
 
       false ->
         original_args_kv
@@ -219,13 +224,16 @@ defmodule Defnamed do
     end
   end
 
-  defp generate_params(original_name, original_args_kv, caller_module_name, compiletime_params) do
+  defp generate_params(original_name, raw_original_args_kv, caller_module_name, compiletime_params) do
     :ok = validate_compiletime_params!(compiletime_params)
+    :ok = pre_validate_original_args_kv!(raw_original_args_kv)
 
     args_struct_subname =
-      original_name
-      |> Atom.to_string()
-      |> Macro.camelize()
+      "__#{
+        original_name
+        |> Atom.to_string()
+        |> Macro.camelize()
+      }__"
       |> String.to_atom()
 
     args_struct_list_alias =
@@ -237,6 +245,27 @@ defmodule Defnamed do
     args_struct_module_name =
       args_struct_list_alias
       |> Module.concat()
+
+    original_args_kv =
+      raw_original_args_kv
+      |> Enum.map(fn
+        {key, {:\\, _, [arg, _]}} -> {key, arg}
+        {_, _} = pair -> pair
+      end)
+
+    default_args_kv =
+      raw_original_args_kv
+      |> Enum.map(fn
+        {key, {:\\, _, [_, default]}} -> {key, default}
+        {key, _} -> {key, nil}
+      end)
+
+    required_args =
+      raw_original_args_kv
+      |> Enum.flat_map(fn
+        {_, {:\\, _, [_, _]}} -> []
+        {key, _} -> [key]
+      end)
 
     args_struct_ast = {
       :%,
@@ -254,7 +283,9 @@ defmodule Defnamed do
       caller_module_name: caller_module_name,
       original_name: original_name,
       original_args_kv: original_args_kv,
-      do_name: String.to_atom("do_#{original_name}"),
+      default_args_kv: default_args_kv,
+      required_args: required_args,
+      do_name: String.to_atom("__#{original_name}__"),
       caller: compiletime_params[@compilertime_caller]
     }
   end
@@ -266,13 +297,20 @@ defmodule Defnamed do
     |> Check.validate_kv!(MapSet.new(@compilertime_params), [], message)
   end
 
+  defp pre_validate_original_args_kv!(original_args_kv) do
+    message = "Defnamed argument"
+
+    original_args_kv
+    |> Check.validate_kv!(message)
+  end
+
   defp maybe_define_named_interface(
          %__MODULE__{
            original_name: original_name,
            caller_module_name: caller_module_name,
            args_struct_list_alias: args_struct_list_alias,
            args_struct_module_name: args_struct_module_name,
-           original_args_kv: original_args_kv,
+           default_args_kv: default_args_kv,
            do_name: do_name
          } = params,
          is_public?,
@@ -295,28 +333,95 @@ defmodule Defnamed do
             false -> :defmacrop
           end
 
+        zero_arity_shortcut =
+          is_public?
+          |> case do
+            true ->
+              quote do
+                caller_module_name = unquote(caller_module_name)
+                original_name = unquote(original_name)
+
+                quote do
+                  unquote(caller_module_name).unquote(original_name)([])
+                end
+              end
+
+            false ->
+              quote do
+                original_name = unquote(original_name)
+
+                quote do
+                  unquote(original_name)([])
+                end
+              end
+          end
+
+        macro_layer_do_bloack =
+          is_macro?
+          |> case do
+            true ->
+              quote do
+                {struct_ast, _} =
+                  {
+                    :%,
+                    [],
+                    [
+                      {:__aliases__, [alias: false], unquote(args_struct_list_alias)},
+                      {:%{}, [], Enum.map(kv, fn {k, v} -> {k, Macro.escape(v)} end)}
+                    ]
+                  }
+                  |> Code.eval_quoted()
+
+                unquote(do_name)(struct_ast)
+              end
+
+            false ->
+              is_public?
+              |> case do
+                true ->
+                  quote do
+                    caller_module_name = unquote(caller_module_name)
+                    do_name = unquote(do_name)
+
+                    struct_ast = {
+                      :%,
+                      [],
+                      [
+                        {:__aliases__, [alias: false], unquote(args_struct_list_alias)},
+                        {:%{}, [], kv}
+                      ]
+                    }
+
+                    quote do
+                      unquote(caller_module_name).unquote(do_name)(unquote(struct_ast))
+                    end
+                  end
+
+                false ->
+                  quote do
+                    do_name = unquote(do_name)
+
+                    struct_ast = {
+                      :%,
+                      [],
+                      [
+                        {:__aliases__, [alias: false], unquote(args_struct_list_alias)},
+                        {:%{}, [], kv}
+                      ]
+                    }
+
+                    quote do
+                      unquote(do_name)(unquote(struct_ast))
+                    end
+                  end
+              end
+          end
+
         additional_macro_layer = [
           quote do
             unquote(additional_macro_layer_expression)(
               unquote(original_name)(),
-              do:
-                (
-                  caller_module_name = unquote(caller_module_name)
-                  original_name = unquote(original_name)
-
-                  unquote(is_public?)
-                  |> case do
-                    true ->
-                      quote do
-                        unquote(caller_module_name).unquote(original_name)([])
-                      end
-
-                    false ->
-                      quote do
-                        unquote(original_name)([])
-                      end
-                  end
-                )
+              do: unquote(zero_arity_shortcut)
             )
 
             unquote(additional_macro_layer_expression)(
@@ -330,48 +435,7 @@ defmodule Defnamed do
                     }
                     |> unquote(__MODULE__).validate_original_args_kv!(true)
 
-                  do_name = unquote(do_name)
-                  caller_module_name = unquote(caller_module_name)
-
-                  unquote(is_macro?)
-                  |> case do
-                    true ->
-                      {struct_ast, _} =
-                        {
-                          :%,
-                          [],
-                          [
-                            {:__aliases__, [alias: false], unquote(args_struct_list_alias)},
-                            {:%{}, [], Enum.map(kv, fn {k, v} -> {k, Macro.escape(v)} end)}
-                          ]
-                        }
-                        |> Code.eval_quoted()
-
-                      unquote(do_name)(struct_ast)
-
-                    false ->
-                      struct_ast = {
-                        :%,
-                        [],
-                        [
-                          {:__aliases__, [alias: false], unquote(args_struct_list_alias)},
-                          {:%{}, [], kv}
-                        ]
-                      }
-
-                      unquote(is_public?)
-                      |> case do
-                        true ->
-                          quote do
-                            unquote(caller_module_name).unquote(do_name)(unquote(struct_ast))
-                          end
-
-                        false ->
-                          quote do
-                            unquote(do_name)(unquote(struct_ast))
-                          end
-                      end
-                  end
+                  unquote(macro_layer_do_bloack)
                 )
             )
           end
@@ -380,7 +444,7 @@ defmodule Defnamed do
         [
           quote do
             defmodule unquote(args_struct_module_name) do
-              defstruct unquote(original_args_kv |> Keyword.keys())
+              defstruct unquote(default_args_kv)
             end
           end
         ]
