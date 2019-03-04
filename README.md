@@ -140,6 +140,6 @@ First version of `Defnamed` macros are just simple macro which generate code "ju
 
 - To call named expression, module with definitions should be required in place where it is used
 - Default arguments can be defined only in first named clause (like in normal kernel expressions)
-- Default arguments in other function clauses (not first) will be ignored
+- Default arguments in other named clauses (not first) will be ignored
 - All desired argument names should be defined in first clause, new arguments can't be defined in other clauses (if these args are not needed in first clause - underscore can be used to ignore them)
 - It's impossible to define clause with 0 arguments - if it's needed to do this, just use at least one named argument with underscore value
