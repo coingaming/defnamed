@@ -7,7 +7,7 @@ Named (or labeled) arguments is powerful abstraction which simplifies complexity
 ```elixir
 # instead of standard call
 authenticate(
-  url,
+  uri,
   user,
   password,
   allow_http?
@@ -15,7 +15,7 @@ authenticate(
 
 # we will write
 authenticate(
-  url: url,
+  uri: uri,
   user: user,
   password: password,
   allow_http?: allow_http?
@@ -28,7 +28,7 @@ The main purpose of this package is to provide extended versions of standard `de
 
 ## Installation
 
-The package can be installed by adding `defnamed` to your list of dependencies in `mix.exs`:
+The package can be installed by adding `defnamed` to list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
@@ -40,4 +40,105 @@ end
 
 ## Example
 
-*... to be continued ...*
+Let's define function which converts number to string to show how package works:
+
+```elixir
+defmodule Num do
+  use Defnamed
+
+  defn to_string(
+         number: number,
+         decimals: _,
+         view: _
+       )
+       when is_integer(number) do
+    Integer.to_string(number)
+  end
+
+  defn to_string(
+         number: number,
+         decimals: decimals \\ 2,
+         view: view \\ nil
+       )
+       when is_float(number) and
+              is_integer(decimals) and
+              decimals >= 0 and
+              view in [nil, :compact, :scientific] do
+    opts =
+      case view do
+        nil -> [{:decimals, decimals}]
+        :compact -> [{:decimals, decimals}, view]
+        :scientific -> [{view, decimals}]
+      end
+
+    :erlang.float_to_binary(number, opts)
+  end
+
+  defn to_string(number: nan) do
+    raise ArgumentError, "term is not a number #{inspect(nan)}"
+  end
+end
+```
+
+And then we can call named functions through helper macro interface:
+
+```elixir
+iex> require Num
+iex> number = 12.123
+iex> Num.to_string(number: number, decimals: 2)
+"12.12"
+iex> number = 12
+iex> Num.to_string(number: number, decimals: 2)
+"12"
+iex> number = :foo
+** (ArgumentError) term is not a number :foo
+```
+
+If we will try to pass argument with incorrect name, compile-time error will be generated:
+
+```elixir
+iex> Num.to_string(number: number, decimals: 2, foo: 0)
+** (Defnamed.Exception.InvalidArgNames) Elixir.Num.to_string argument should be keyword list which can contain only [:decimals, :number, :view] keys without duplication, and mandatory [:number] keys, but got invalid :foo key
+```
+
+Also it will be compile-time error if we duplicate argument:
+
+```elixir
+iex> Num.to_string(number: number, decimals: 2, decimals: 2)
+** (Defnamed.Exception.ArgNamesDuplication) Elixir.Num.to_string argument should be keyword list which can contain only [:decimals, :number, :view] keys without duplication, and mandatory [:number] keys, but keys [:decimals] are duplicated
+```
+
+Or pass not keyword list
+
+```elixir
+iex> Num.to_string(number)
+** (Defnamed.Exception.NotKeyword) Elixir.Num.to_string argument should be keyword list which can contain only [:decimals, :number, :view] keys without duplication, and mandatory [:number] keys, but argument is not a keyword: {:number, [line: 11], nil}
+```
+
+Or not pass required argument (argument is required if default value was not specified)
+
+```elixir
+iex> Num.to_string(decimals: 2)
+** (Defnamed.Exception.MissingRequiredArgs) Elixir.Num.to_string argument should be keyword list which can contain only [:decimals, :number, :view] keys without duplication, and mandatory [:number] keys, but required :number key is not presented
+```
+
+Macro which define named expressions have the same functionality/syntax like standard kernel macro, but just have **n** postfix:
+
+| Kernel | Defnamed |
+|--------|----------|
+| def | defn |
+| defp | defpn |
+| defmacro | defmacron |
+| defmacrop | defmacropn |
+
+All standard features like multiple clauses, guard expressions, underscore expression and pattern matching are supported.
+
+## Design decisions
+
+First version of `Defnamed` macros are just simple macro which generate code "just in place" without accumulating some state in module attributes. Design of library gives some minor limitations:
+
+- To call named expression, module with definitions should be required in place where it is used
+- Default arguments can be defined only in first named clause (like in normal kernel expressions)
+- Default arguments in other function clauses (not first) will be ignored
+- All desired argument names should be defined in first clause, new arguments can't be defined in other clauses (if these args are not needed in first clause - underscore can be used to ignore them)
+- It's impossible to define clause with 0 arguments - if it's needed to do this, just use at least one named argument with underscore value
