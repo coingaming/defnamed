@@ -33,7 +33,7 @@ The package can be installed by adding `defnamed` to list of dependencies in `mi
 ```elixir
 def deps do
   [
-    {:defnamed, "~> 0.1.0"}
+    {:defnamed, "~> 0.1"}
   ]
 end
 ```
@@ -91,6 +91,7 @@ iex> number = 12
 iex> Num.to_string(number: number)
 "12"
 iex> number = :foo
+iex> Num.to_string(number: number)
 ** (ArgumentError) term is not a number :foo
 ```
 
