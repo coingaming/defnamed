@@ -36,7 +36,7 @@ The package can be installed by adding `defnamed` to list of dependencies in `mi
 ```elixir
 def deps do
   [
-    {:defnamed, "~> 0.1", organization: "coingaming"}
+    {:defnamed, "~> 0.1"}
   ]
 end
 ```

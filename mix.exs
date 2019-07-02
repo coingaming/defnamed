@@ -37,13 +37,12 @@ defmodule Defnamed.MixProject do
       # hex.pm stuff
       description: "compile-time named arguments for Elixir functions and macro",
       package: [
-        organization: "coingaming",
         licenses: ["Apache 2.0"],
         files: ["lib", "priv", "mix.exs", "README*", "VERSION*"],
         maintainers: ["Ilja Tkachuk AKA timCF"],
         links: %{
           "GitHub" => "https://github.com/coingaming/defnamed",
-          "Author's home page" => "https://timcf.github.io"
+          "Author's home page" => "https://itkach.uk"
         }
       ]
     ]
