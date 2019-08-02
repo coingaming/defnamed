@@ -57,19 +57,41 @@ defmodule Defnamed do
   Defnamed
   ```
   """
-  defmacro __using__(_) do
-    quote do
-      import Defnamed,
-        only: [
-          defn: 2,
-          defn: 3,
-          defpn: 2,
-          defpn: 3,
-          defmacron: 2,
-          defmacron: 3,
-          defmacropn: 2,
-          defmacropn: 3
-        ]
+  defmacro __using__(opts) do
+    case opts do
+      [] ->
+        quote do
+          import Defnamed,
+            only: [
+              defn: 2,
+              defn: 3,
+              defpn: 2,
+              defpn: 3,
+              defmacron: 2,
+              defmacron: 3,
+              defmacropn: 2,
+              defmacropn: 3
+            ]
+        end
+
+      [replace_kernel: true] ->
+        quote do
+          use Defnamed
+
+          import Kernel,
+            except: [
+              def: 1,
+              def: 2,
+              defp: 1,
+              defp: 2,
+              defmacro: 1,
+              defmacro: 2,
+              defmacrop: 1,
+              defmacrop: 2
+            ]
+
+          import Defnamed.Kernel
+        end
     end
   end
 
@@ -124,7 +146,7 @@ defmodule Defnamed do
         |> maybe_define_named_interface(unquote(is_public?), unquote(is_macro?))
         |> Enum.concat([
           quote do
-            unquote(low_level_expression)(
+            Kernel.unquote(low_level_expression)(
               unquote({:when, original_when_meta, [{do_name, original_meta, [args_struct_ast]} | original_guards]}),
               do: (unquote_splicing([caller_code, original_body]))
             )
@@ -171,7 +193,7 @@ defmodule Defnamed do
         |> maybe_define_named_interface(unquote(is_public?), unquote(is_macro?))
         |> Enum.concat([
           quote do
-            unquote(low_level_expression)(
+            Kernel.unquote(low_level_expression)(
               unquote({do_name, original_meta, [args_struct_ast]}),
               do: (unquote_splicing([caller_code, original_body]))
             )
@@ -419,12 +441,12 @@ defmodule Defnamed do
 
         additional_macro_layer = [
           quote do
-            unquote(additional_macro_layer_expression)(
+            Kernel.unquote(additional_macro_layer_expression)(
               unquote(original_name)(),
               do: unquote(zero_arity_shortcut)
             )
 
-            unquote(additional_macro_layer_expression)(
+            Kernel.unquote(additional_macro_layer_expression)(
               unquote(original_name)(kv),
               do:
                 (
