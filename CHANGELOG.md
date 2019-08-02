@@ -1,5 +1,8 @@
 # Change Log
 
+## [v0.1.2](https://github.com/coingaming/defnamed/tree/v0.1.2) (2019-03-04)
+[Full Changelog](https://github.com/coingaming/defnamed/compare/v0.1.1...v0.1.2)
+
 ## [v0.1.1](https://github.com/coingaming/defnamed/tree/v0.1.1) (2019-03-04)
 **Merged pull requests:**
 
